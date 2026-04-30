@@ -1,0 +1,522 @@
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { ethers, fhevm } from "hardhat";
+import { SealPad, SealPad__factory, MockERC20 } from "../types";
+import { expect } from "chai";
+
+type Signers = {
+  deployer: HardhatEthersSigner;
+  creator: HardhatEthersSigner;
+  alice: HardhatEthersSigner;
+  bob: HardhatEthersSigner;
+  charlie: HardhatEthersSigner;
+};
+
+const SaleType = { FixedPrice: 0, DutchAuction: 1 };
+const SaleStatus = { Active: 0, Finalizing: 1, Settled: 2, Failed: 3, Cancelled: 4 };
+
+async function getBlockTimestamp(): Promise<number> {
+  return (await ethers.provider.getBlock("latest"))!.timestamp;
+}
+
+async function deployFixture(signers: Signers) {
+  const sealPadFactory = (await ethers.getContractFactory("SealPad")) as SealPad__factory;
+  const sealPad = (await sealPadFactory.deploy()) as SealPad;
+  const sealPadAddress = await sealPad.getAddress();
+
+  const mockFactory = await ethers.getContractFactory("MockERC20");
+  const saleToken = (await mockFactory.deploy("Sale Token", "SALE", 18)) as MockERC20;
+  const saleTokenAddress = await saleToken.getAddress();
+  const payToken = (await mockFactory.deploy("Mock USDC", "USDC", 6)) as MockERC20;
+  const payTokenAddress = await payToken.getAddress();
+
+  const saleAmount = ethers.parseEther("10000");
+  await saleToken.mint(signers.creator.address, saleAmount);
+  await saleToken.connect(signers.creator).approve(sealPadAddress, saleAmount);
+
+  const payAmount = ethers.parseUnits("10000", 6);
+  for (const s of [signers.alice, signers.bob, signers.charlie]) {
+    await payToken.mint(s.address, payAmount);
+    await payToken.connect(s).approve(sealPadAddress, payAmount);
+  }
+
+  return { sealPad, sealPadAddress, saleToken, saleTokenAddress, payToken, payTokenAddress, saleAmount };
+}
+
+function makeFixedParams(overrides: Record<string, any>) {
+  return {
+    saleToken: overrides.saleToken,
+    saleAmount: overrides.saleAmount ?? ethers.parseEther("10000"),
+    payToken: overrides.payToken,
+    saleType: SaleType.FixedPrice,
+    price: overrides.price ?? 1000,
+    softCap: overrides.softCap ?? 500,
+    hardCap: overrides.hardCap ?? 5000,
+    maxPerUser: overrides.maxPerUser ?? 0,
+    startTime: overrides.startTime,
+    endTime: overrides.endTime,
+    whitelistRoot: overrides.whitelistRoot ?? ethers.ZeroHash,
+    cliffDuration: overrides.cliffDuration ?? 0,
+    vestingDuration: overrides.vestingDuration ?? 0,
+  };
+}
+
+function makeDutchParams(overrides: Record<string, any>) {
+  return {
+    saleToken: overrides.saleToken,
+    saleAmount: overrides.saleAmount ?? ethers.parseEther("10000"),
+    payToken: overrides.payToken,
+    saleType: SaleType.DutchAuction,
+    price: overrides.price ?? 500, // floor price
+    softCap: overrides.softCap ?? 500,
+    hardCap: overrides.hardCap ?? 5000,
+    maxPerUser: overrides.maxPerUser ?? 0,
+    startTime: overrides.startTime,
+    endTime: overrides.endTime,
+    whitelistRoot: overrides.whitelistRoot ?? ethers.ZeroHash,
+    cliffDuration: overrides.cliffDuration ?? 0,
+    vestingDuration: overrides.vestingDuration ?? 0,
+  };
+}
+
+describe("SealPad", function () {
+  let signers: Signers;
+  let sealPad: SealPad;
+  let sealPadAddress: string;
+  let saleToken: MockERC20;
+  let saleTokenAddress: string;
+  let payToken: MockERC20;
+  let payTokenAddress: string;
+  let saleAmount: bigint;
+
+  before(async function () {
+    const ethSigners = await ethers.getSigners();
+    signers = {
+      deployer: ethSigners[0],
+      creator: ethSigners[1],
+      alice: ethSigners[2],
+      bob: ethSigners[3],
+      charlie: ethSigners[4],
+    };
+  });
+
+  beforeEach(async function () {
+    if (!fhevm.isMock) {
+      console.warn("This test suite requires mock FHE");
+      this.skip();
+    }
+    ({ sealPad, sealPadAddress, saleToken, saleTokenAddress, payToken, payTokenAddress, saleAmount } =
+      await deployFixture(signers));
+  });
+
+  // ============================================================
+  //                     CREATE SALE
+  // ============================================================
+
+  describe("createSale", function () {
+    it("should create a Fixed Price sale and lock tokens", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      const sale = await sealPad.getSale(0);
+      expect(sale.creator).to.eq(signers.creator.address);
+      expect(sale.saleType).to.eq(SaleType.FixedPrice);
+      expect(sale.status).to.eq(SaleStatus.Active);
+      expect(sale.price).to.eq(1000);
+      expect(await saleToken.balanceOf(sealPadAddress)).to.eq(saleAmount);
+    });
+
+    it("should create a Dutch Auction sale with floor price", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeDutchParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600, price: 800 }),
+      );
+      const sale = await sealPad.getSale(0);
+      expect(sale.saleType).to.eq(SaleType.DutchAuction);
+      expect(sale.price).to.eq(800); // floor price
+    });
+
+    it("should revert with softCap > hardCap", async function () {
+      const now = await getBlockTimestamp();
+      await expect(
+        sealPad.connect(signers.creator).createSale(
+          makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600, softCap: 5000, hardCap: 1000 }),
+        ),
+      ).to.be.revertedWithCustomError(sealPad, "InvalidParams");
+    });
+
+    it("should revert with price zero", async function () {
+      const now = await getBlockTimestamp();
+      await expect(
+        sealPad.connect(signers.creator).createSale(
+          makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600, price: 0 }),
+        ),
+      ).to.be.revertedWithCustomError(sealPad, "InvalidParams");
+    });
+  });
+
+  // ============================================================
+  //                     CANCEL SALE
+  // ============================================================
+
+  describe("cancelSale", function () {
+    it("should cancel and return tokens if no participants", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      const balBefore = await saleToken.balanceOf(signers.creator.address);
+      await sealPad.connect(signers.creator).cancelSale(0);
+      const balAfter = await saleToken.balanceOf(signers.creator.address);
+      expect(balAfter - balBefore).to.eq(saleAmount);
+      expect((await sealPad.getSale(0)).status).to.eq(SaleStatus.Cancelled);
+    });
+
+    it("should revert if not creator", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      await expect(sealPad.connect(signers.alice).cancelSale(0)).to.be.revertedWithCustomError(sealPad, "NotCreator");
+    });
+  });
+
+  // ============================================================
+  //                     DEPOSIT
+  // ============================================================
+
+  describe("addDeposit", function () {
+    beforeEach(async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+    });
+
+    it("should accept ERC-20 deposit", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 1000);
+      expect(await sealPad.deposits(0, signers.alice.address)).to.eq(1000);
+    });
+
+    it("should accumulate deposits", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 400);
+      await sealPad.connect(signers.alice).addDeposit(0, 600);
+      expect(await sealPad.deposits(0, signers.alice.address)).to.eq(1000);
+    });
+
+    it("should lock pay tokens", async function () {
+      const before = await payToken.balanceOf(signers.alice.address);
+      await sealPad.connect(signers.alice).addDeposit(0, 1000);
+      expect(before - (await payToken.balanceOf(signers.alice.address))).to.eq(1000);
+    });
+  });
+
+  // ============================================================
+  //                  CONTRIBUTE (Fixed Price)
+  // ============================================================
+
+  describe("contribute — Fixed Price", function () {
+    beforeEach(async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+    });
+
+    it("should accept encrypted contribution", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 2000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1500).encrypt();
+      await sealPad.connect(signers.alice).contribute(0, enc.handles[0], enc.inputProof, []);
+      expect(await sealPad.hasParticipated(0, signers.alice.address)).to.eq(true);
+      expect((await sealPad.getSale(0)).participantCount).to.eq(1);
+    });
+
+    it("should revert without deposit", async function () {
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1000).encrypt();
+      await expect(
+        sealPad.connect(signers.alice).contribute(0, enc.handles[0], enc.inputProof, []),
+      ).to.be.revertedWithCustomError(sealPad, "InsufficientDeposit");
+    });
+
+    it("should allow update without moving tokens", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+      const enc1 = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1000).encrypt();
+      await sealPad.connect(signers.alice).contribute(0, enc1.handles[0], enc1.inputProof, []);
+      const balMid = await payToken.balanceOf(signers.alice.address);
+
+      const enc2 = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2500).encrypt();
+      await sealPad.connect(signers.alice).contribute(0, enc2.handles[0], enc2.inputProof, []);
+      expect(await payToken.balanceOf(signers.alice.address)).to.eq(balMid);
+      expect((await sealPad.getSale(0)).participantCount).to.eq(1);
+    });
+
+    it("should support multiple participants", async function () {
+      for (const s of [signers.alice, signers.bob, signers.charlie]) {
+        await sealPad.connect(s).addDeposit(0, 2000);
+        const enc = await fhevm.createEncryptedInput(sealPadAddress, s.address).add64(1500).encrypt();
+        await sealPad.connect(s).contribute(0, enc.handles[0], enc.inputProof, []);
+      }
+      expect((await sealPad.getSale(0)).participantCount).to.eq(3);
+    });
+  });
+
+  // ============================================================
+  //                  BID (Dutch Auction)
+  // ============================================================
+
+  describe("bid — Dutch Auction", function () {
+    beforeEach(async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeDutchParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200, price: 500 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+    });
+
+    it("should accept bid with user-chosen price", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2000).encrypt();
+      await sealPad.connect(signers.alice).bid(0, 1200, enc.handles[0], enc.inputProof, []);
+
+      expect(await sealPad.hasParticipated(0, signers.alice.address)).to.eq(true);
+      expect(await sealPad.userBidPrice(0, signers.alice.address)).to.eq(1200);
+    });
+
+    it("should revert if bid price below floor", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2000).encrypt();
+      await expect(
+        sealPad.connect(signers.alice).bid(0, 400, enc.handles[0], enc.inputProof, []),
+      ).to.be.revertedWithCustomError(sealPad, "PriceBelowFloor");
+    });
+
+    it("should allow updating bid price and amount", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+
+      const enc1 = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1500).encrypt();
+      await sealPad.connect(signers.alice).bid(0, 1000, enc1.handles[0], enc1.inputProof, []);
+      expect(await sealPad.userBidPrice(0, signers.alice.address)).to.eq(1000);
+
+      const enc2 = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2500).encrypt();
+      await sealPad.connect(signers.alice).bid(0, 1500, enc2.handles[0], enc2.inputProof, []);
+      expect(await sealPad.userBidPrice(0, signers.alice.address)).to.eq(1500);
+      expect((await sealPad.getSale(0)).participantCount).to.eq(1);
+    });
+
+    it("should support multiple bidders at different prices", async function () {
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+      const encA = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2000).encrypt();
+      await sealPad.connect(signers.alice).bid(0, 2000, encA.handles[0], encA.inputProof, []);
+
+      await sealPad.connect(signers.bob).addDeposit(0, 2000);
+      const encB = await fhevm.createEncryptedInput(sealPadAddress, signers.bob.address).add64(1000).encrypt();
+      await sealPad.connect(signers.bob).bid(0, 800, encB.handles[0], encB.inputProof, []);
+
+      await sealPad.connect(signers.charlie).addDeposit(0, 2500);
+      const encC = await fhevm.createEncryptedInput(sealPadAddress, signers.charlie.address).add64(1500).encrypt();
+      await sealPad.connect(signers.charlie).bid(0, 1200, encC.handles[0], encC.inputProof, []);
+
+      expect((await sealPad.getSale(0)).participantCount).to.eq(3);
+      expect(await sealPad.userBidPrice(0, signers.alice.address)).to.eq(2000);
+      expect(await sealPad.userBidPrice(0, signers.bob.address)).to.eq(800);
+      expect(await sealPad.userBidPrice(0, signers.charlie.address)).to.eq(1200);
+    });
+  });
+
+  // ============================================================
+  //                     FINALIZE
+  // ============================================================
+
+  describe("finalize", function () {
+    it("should fail sale if no participants", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 5 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [10]);
+      await ethers.provider.send("evm_mine", []);
+
+      const before = await saleToken.balanceOf(signers.creator.address);
+      await sealPad.finalize(0);
+      expect((await sealPad.getSale(0)).status).to.eq(SaleStatus.Failed);
+      expect((await saleToken.balanceOf(signers.creator.address)) - before).to.eq(saleAmount);
+    });
+
+    it("should enter Finalizing for Fixed Price", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.connect(signers.alice).addDeposit(0, 2000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1000).encrypt();
+      await sealPad.connect(signers.alice).contribute(0, enc.handles[0], enc.inputProof, []);
+
+      await ethers.provider.send("evm_increaseTime", [3700]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.finalize(0);
+      expect((await sealPad.getSale(0)).status).to.eq(SaleStatus.Finalizing);
+    });
+
+    it("should enter Finalizing for Dutch Auction", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeDutchParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.connect(signers.alice).addDeposit(0, 3000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(2000).encrypt();
+      await sealPad.connect(signers.alice).bid(0, 1000, enc.handles[0], enc.inputProof, []);
+
+      await ethers.provider.send("evm_increaseTime", [3700]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.finalize(0);
+      expect((await sealPad.getSale(0)).status).to.eq(SaleStatus.Finalizing);
+    });
+
+    it("should revert if sale not ended", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200 }),
+      );
+      await expect(sealPad.finalize(0)).to.be.revertedWithCustomError(sealPad, "SaleNotEnded");
+    });
+  });
+
+  // ============================================================
+  //                     WITHDRAW DEPOSIT
+  // ============================================================
+
+  describe("withdrawDeposit", function () {
+    it("should allow withdrawal after failure", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 5 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+      await sealPad.connect(signers.alice).addDeposit(0, 1000);
+
+      await ethers.provider.send("evm_increaseTime", [10]);
+      await ethers.provider.send("evm_mine", []);
+      await sealPad.finalize(0);
+
+      const before = await payToken.balanceOf(signers.alice.address);
+      await sealPad.connect(signers.alice).withdrawDeposit(0);
+      expect((await payToken.balanceOf(signers.alice.address)) - before).to.eq(1000);
+    });
+
+    it("should allow withdrawal when not participated", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+      await sealPad.connect(signers.alice).addDeposit(0, 1000);
+
+      const before = await payToken.balanceOf(signers.alice.address);
+      await sealPad.connect(signers.alice).withdrawDeposit(0);
+      expect((await payToken.balanceOf(signers.alice.address)) - before).to.eq(1000);
+    });
+
+    it("should revert if participated and sale not finished", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 7200 }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+      await sealPad.connect(signers.alice).addDeposit(0, 2000);
+      const enc = await fhevm.createEncryptedInput(sealPadAddress, signers.alice.address).add64(1000).encrypt();
+      await sealPad.connect(signers.alice).contribute(0, enc.handles[0], enc.inputProof, []);
+
+      await expect(
+        sealPad.connect(signers.alice).withdrawDeposit(0),
+      ).to.be.revertedWithCustomError(sealPad, "NotFinished");
+    });
+  });
+
+  // ============================================================
+  //                     ETH SALES
+  // ============================================================
+
+  describe("ETH sales", function () {
+    it("should accept ETH deposit", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({
+          saleToken: saleTokenAddress,
+          payToken: ethers.ZeroAddress,
+          startTime: now + 1,
+          endTime: now + 7200,
+          price: ethers.parseEther("0.001"),
+          softCap: ethers.parseEther("0.01"),
+          hardCap: ethers.parseEther("1"),
+        }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.connect(signers.alice).addDeposit(0, 0, { value: ethers.parseEther("0.5") });
+      expect(await sealPad.deposits(0, signers.alice.address)).to.eq(ethers.parseEther("0.5"));
+    });
+
+    it("should place encrypted bid on ETH Dutch sale", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeDutchParams({
+          saleToken: saleTokenAddress,
+          payToken: ethers.ZeroAddress,
+          startTime: now + 1,
+          endTime: now + 7200,
+          price: ethers.parseEther("0.0005"),
+          softCap: ethers.parseEther("0.01"),
+          hardCap: ethers.parseEther("1"),
+        }),
+      );
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await sealPad.connect(signers.alice).addDeposit(0, 0, { value: ethers.parseEther("0.5") });
+
+      const enc = await fhevm
+        .createEncryptedInput(sealPadAddress, signers.alice.address)
+        .add64(ethers.parseEther("0.3"))
+        .encrypt();
+
+      await sealPad.connect(signers.alice).bid(0, ethers.parseEther("0.001"), enc.handles[0], enc.inputProof, []);
+      expect(await sealPad.hasParticipated(0, signers.alice.address)).to.eq(true);
+      expect(await sealPad.userBidPrice(0, signers.alice.address)).to.eq(ethers.parseEther("0.001"));
+    });
+  });
+
+  // ============================================================
+  //                     CONSTANTS & VIEWS
+  // ============================================================
+
+  describe("constants & views", function () {
+    it("should have correct MAX_PARTICIPANTS", async function () {
+      expect(await sealPad.MAX_PARTICIPANTS()).to.eq(50);
+    });
+
+    it("should return 0 claimable when not settled", async function () {
+      const now = await getBlockTimestamp();
+      await sealPad.connect(signers.creator).createSale(
+        makeFixedParams({ saleToken: saleTokenAddress, payToken: payTokenAddress, startTime: now + 1, endTime: now + 3600 }),
+      );
+      expect(await sealPad.claimable(0, signers.alice.address)).to.eq(0);
+    });
+  });
+});

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="SealPad">
+  <!-- Outer cipher block -->
+  <rect width="64" height="64" rx="1.38" ry="1.38" fill="#181818"/>
+  <!-- Middle aperture (white window) -->
+  <rect x="14" y="14" width="36" height="36" rx="0.78" ry="0.78" fill="#FFFFFF"/>
+  <!-- Inner key (orange seal) -->
+  <rect x="26" y="26" width="12" height="12" rx="0.26" ry="0.26" fill="#FF5100"/>
+</svg>

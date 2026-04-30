@@ -1,0 +1,117 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+## Project
+
+**SealPad** — Confidential Token Sale Platform for the Zama Developer Program (Mainnet Season 2, Builder Track). Two-package monorepo (no workspace file): an FHEVM Hardhat project under `contracts/` and a Vite + React frontend under `frontend/`. The full design is in `TECHNICAL_DESIGN.md` (Chinese).
+
+The deployed `SealPad` contract on Sepolia (chainId `11155111`) is at `0x18C28BEFDfE6107Ee83d1D1D173D6C88bD335F42` — this address is hardcoded in `frontend/src/config/contracts.ts` and persisted in `contracts/deployments/sepolia/`.
+
+## Common commands
+
+All commands assume you have `cd`'d into the relevant package; there is no root-level package.json.
+
+### contracts/
+
+```bash
+npm run compile              # hardhat compile + typechain (generates ./types)
+npm run test                 # hardhat test (uses fhevm mock — required, tests skip otherwise)
+npm run test:sepolia         # run tests against deployed Sepolia contract
+npx hardhat test test/SealPad.ts --grep "should accept encrypted contribution"   # single test
+npm run coverage             # solidity-coverage
+npm run lint                 # solhint + eslint + prettier check
+npm run deploy:sepolia       # hardhat-deploy to Sepolia (writes to deployments/sepolia/)
+npm run verify:sepolia       # etherscan verification
+npm run chain                # local hardhat node (no auto-deploy)
+```
+
+Hardhat vars (set with `npx hardhat vars set <NAME>`):
+- `MNEMONIC` — fallback to "test test ... junk" if unset
+- `INFURA_API_KEY`, `ETHERSCAN_API_KEY`
+- `DEPLOYER_PRIVATE_KEY` — if set, takes precedence over MNEMONIC for Sepolia
+
+### frontend/
+
+```bash
+npm run dev          # vite dev server
+npm run build        # tsc -b && vite build
+npm run lint         # eslint
+npm run preview      # vite preview
+```
+
+Frontend env: `VITE_SEALPAD_ADDRESS` overrides the hardcoded contract address. RPC is hardcoded to `https://ethereum-sepolia-rpc.publicnode.com` in `src/config/wagmi.ts`. `@` alias resolves to `frontend/src/`.
+
+## Architecture
+
+### Sale lifecycle (single contract, two modes)
+
+`SealPad.sol` is one contract supporting both `FixedPrice` and `DutchAuction` sales via the `SaleType` enum. The state machine is:
+
+```
+Active → Finalizing → Settled    (success path)
+                    → Failed     (softCap not reached or no participants)
+Active → Cancelled               (creator cancels with no participants)
+```
+
+The `finalize` function is the single entry to phase 2 — it sets status to `Finalizing`, calls `FHE.makePubliclyDecryptable` on every encrypted handle that needs to be revealed (the running total for FixedPrice + every individual contribution/bid), and emits `SaleFinalizing`. Off-chain, KMS decrypts these handles, then anyone calls `settleFixed` or `settleDutch` with the decrypted values + KMS proof. `FHE.checkSignatures` verifies the proof on-chain before allocations are computed.
+
+This split (finalize → KMS decrypt → settle) is the central reason the contract has two storage layouts per sale: encrypted fields (`euint64`) before settlement, plain `uint256` `allocations` after.
+
+### Independent deposit pool (vs. cWETH)
+
+Unlike PrivacyPad's cWETH wrapping, SealPad uses an independent deposit pool: users `addDeposit` first (public amount, sets per-user upper bound), then `contribute` / `bid` with an FHE-encrypted amount that is `FHE.min`-clamped to the deposit. **No funds move when contributions are updated** — only the encrypted ciphertext changes, leaving no on-chain trace of bid revisions. This is the core privacy primitive; understanding it is required before changing `contribute`/`bid`/`addDeposit`/`withdrawDeposit`.
+
+Withdrawal rules: `withdrawDeposit` succeeds if the sale is finished (Settled/Failed/Cancelled) **or** the user never participated. Once a user has called `contribute`/`bid`, their deposit is locked until settlement.
+
+### Dutch Auction clearing — diverges from TECHNICAL_DESIGN.md
+
+The implementation does **not** use the discrete tier-based design described in the design doc (`_tierBids[saleId][tierIndex][user]`). Instead:
+- Each user picks an arbitrary `bidPrice` (public, must be `>= sale.price` which is the floor).
+- `_bidAmounts[saleId][user]` holds one encrypted total investment per user.
+- `_computeClearing` does an O(n²) selection-sort over participants from highest to lowest bid price, accumulating token demand against `saleAmount` until supply is exhausted. The price where exhaustion occurs is the clearing price; bidders at that exact price share `overflowRemaining` pro-rata via `tokens × overflowRemaining / overflowDemand`.
+- Everyone who bids ≥ clearing price pays the **uniform** clearing price (excess refunded by leaving funds in `deposits`).
+- `MAX_PARTICIPANTS = 50` keeps the O(n²) tractable.
+
+If you read the design doc's "tier" terminology, mentally translate it to "user-chosen bid price" — the contract is correct, the doc is stale on this.
+
+### Settlement input format
+
+Both `settleFixed` and `settleDutch` take `uint64[] decryptedValues` ordered to match the handle order built inside the contract:
+- `settleFixed`: `[totalContributed, contrib_user0, contrib_user1, ...]` (length = 1 + participantCount).
+- `settleDutch`: `[bid_user0, bid_user1, ...]` (length = participantCount, in `_participants` order).
+
+The contract reconstructs the handle array in the same order and passes both to `FHE.checkSignatures(handles, _encodeUint64Array(values), proof)`. `_encodeUint64Array` is a custom abi-encoder loop that concatenates `abi.encode(uint64)` per element — this exact encoding is what the KMS signs over, so do not change it without coordinating with the off-chain decryption pipeline.
+
+### Vesting & claim
+
+`_vestedAmount` returns `0` before cliff, full `allocation` after `cliffEnd + vestingDuration`, and a linear ratio between. Claim is pull-based. `cliffDuration == 0 && vestingDuration == 0` means instant claim.
+
+### Frontend integration with FHE
+
+`frontend/src/lib/fhevm.ts` is a singleton wrapper around `@zama-fhe/relayer-sdk/web`:
+- `getFhevmInstance()` lazy-inits with `SepoliaConfig` + the project's RPC URL; the resulting instance is cached.
+- `encryptBidAmount(userAddress, amount)` produces `{ handle, inputProof }` to pass directly to the contract's `contribute` / `bid` calls.
+
+`SaleDetail.tsx` is the only page that calls `encryptBidAmount` (dynamic import to avoid loading the SDK on every page). It computes total cost as `quantity × pricePerToken` (Dutch uses user-entered bidPrice; FixedPrice uses `sale.price`), validates against `currentDeposit`, then calls `contribute` for FixedPrice or `bid` for Dutch.
+
+The frontend tracks pay-token decimals dynamically: ETH uses `parseEther/formatEther`, ERC-20 calls `decimals()` and uses `parseUnits/formatUnits`. **Sale token amounts are always treated as 18-decimal** (`formatEther(sale.saleAmount)`); creating a sale token with non-18 decimals will display incorrectly.
+
+### ABI source of truth
+
+`frontend/src/config/contracts.ts` declares a hand-curated subset of the ABI as a `const` array (typed via `as const`). It is **not** generated from `contracts/types/`. When you add or modify a contract function/event you intend to call from the frontend, update this file by hand — the typechain output in `contracts/types/` is not imported by the frontend.
+
+## Solidity / FHEVM specifics
+
+- Solc `0.8.27`, `viaIR: true`, `evmVersion: cancun`, `runs: 800`. Always run `npm run compile` after editing `.sol` — typechain regenerates and the frontend ABI must be updated separately if signatures changed.
+- `MAX_PARTICIPANTS = 50`, `PRICE_SCALE = 1e18` are protocol-wide constants.
+- All payment math uses `uint64` for compatibility with FHE `euint64`. Token allocations are `uint256` because they're unencrypted and scaled by `PRICE_SCALE`.
+- `payToken == address(0)` means native ETH throughout the contract; the helper is `_isETH`.
+- Tests live in `contracts/test/SealPad.ts` and skip themselves if `fhevm.isMock` is false — the suite only runs under the FHEVM mock harness.
+
+## Conventions and gotchas
+
+- The frontend's hardcoded contract address is the single source of truth at runtime; redeploying requires updating both `contracts/deployments/sepolia/` (auto by hardhat-deploy) and the constant in `contracts.ts` (manually, or set `VITE_SEALPAD_ADDRESS`).
+- `frontend/dist/` is checked in (or last-built); `frontend/.gitignore` excludes `node_modules` only — be careful when committing build artifacts.
+- The Tailwind theme uses `--radius: 0` globally (intentional sharp-corner aesthetic). Custom colors live in `src/index.css` under `@theme inline` (`canvas`, `ink-dark`, `ink-medium`, `brand-500`).
+- WalletConnect projectId in `wagmi.ts` is a placeholder (`"00000000000000000000000000000000"`); replace before any production deploy.
