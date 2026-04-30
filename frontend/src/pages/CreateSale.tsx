@@ -257,14 +257,27 @@ export function CreateSale() {
       await publicClient.waitForTransactionReceipt({ hash: approveHash });
       toast.success("Token approved");
 
+      setStep(isETH ? "Preparing sale parameters..." : "Reading payment token decimals...");
+      const payToken = (isETH ? ZERO_ADDRESS : payTokenAddress) as `0x${string}`;
+      const payTokenDecimals = isETH
+        ? 18
+        : Number(
+            await publicClient.readContract({
+              address: payToken,
+              abi: erc20Abi,
+              functionName: "decimals",
+            }),
+          );
+
       setStep("Sign sale creation...");
 
-      const parsePayAmount = (v: string) => (isETH ? parseEther(v) : parseUnits(v, 6));
+      const parsePayAmount = (v: string) =>
+        isETH ? parseEther(v) : parseUnits(v, payTokenDecimals);
 
       const params = {
         saleToken: saleToken as `0x${string}`,
         saleAmount: saleAmountRaw,
-        payToken: (isETH ? ZERO_ADDRESS : payTokenAddress) as `0x${string}`,
+        payToken,
         saleType,
         price: parsePayAmount(price),
         softCap: parsePayAmount(softCap),
