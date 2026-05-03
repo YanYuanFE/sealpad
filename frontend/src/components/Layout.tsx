@@ -9,6 +9,7 @@ const navItems = [
   { to: "/app", label: "Sales" },
   { to: "/app/create", label: "Create" },
   { to: "/app/my", label: "My Activity" },
+  { to: "/app/docs", label: "Docs" },
 ];
 
 export function Layout() {

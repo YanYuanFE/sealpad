@@ -8,7 +8,13 @@ import {
   usePublicClient,
   useBalance,
 } from "wagmi";
-import { erc20Abi, parseUnits, parseEther, formatUnits, formatEther } from "viem";
+import {
+  erc20Abi,
+  parseUnits,
+  parseEther,
+  formatUnits,
+  formatEther,
+} from "viem";
 import { toast } from "sonner";
 import { Lock } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,6 +76,13 @@ export function SaleDetail() {
     address: sale?.saleToken as `0x${string}`,
     abi: erc20Abi,
     functionName: "symbol",
+    query: { enabled: !!sale },
+  });
+
+  const { data: saleTokenDecimalsRaw } = useReadContract({
+    address: sale?.saleToken as `0x${string}`,
+    abi: erc20Abi,
+    functionName: "decimals",
     query: { enabled: !!sale },
   });
 
@@ -160,12 +173,36 @@ export function SaleDetail() {
     return <p className="text-slate-500">Loading sale...</p>;
   }
 
-  const decimals = isETH ? 18 : payTokenDecimals ?? 6;
-  const tokenLabel = isETH ? "ETH" : payTokenSymbol ?? "tokens";
+  const decimals = isETH ? 18 : (payTokenDecimals ?? 6);
+  const saleTokenDecimals =
+    saleTokenDecimalsRaw !== undefined ? Number(saleTokenDecimalsRaw) : 18;
+  const saleTokenScale = sale.saleTokenScale ?? 10n ** 18n;
+  const tokenLabel = isETH ? "ETH" : (payTokenSymbol ?? "tokens");
   const saleLabel = saleTokenSymbol ?? "SALE";
   const fmtPay = (v: bigint | number) =>
     isETH ? formatEther(BigInt(v)) : formatUnits(BigInt(v), decimals);
-  const parsePay = (v: string) => (isETH ? parseEther(v) : parseUnits(v, decimals));
+  const fmtSale = (v: bigint | number) =>
+    formatUnits(BigInt(v), saleTokenDecimals);
+  const parsePay = (v: string) =>
+    isETH ? parseEther(v) : parseUnits(v, decimals);
+  const tryParsePay = (v: string) => {
+    const normalized = v.trim();
+    if (!normalized) return null;
+    try {
+      return parsePay(normalized);
+    } catch {
+      return null;
+    }
+  };
+  const tryParseSaleTokens = (v: string) => {
+    const normalized = v.trim();
+    if (!normalized) return null;
+    try {
+      return parseUnits(normalized, saleTokenDecimals);
+    } catch {
+      return null;
+    }
+  };
 
   const now = Math.floor(Date.now() / 1000);
   const isStarted = now >= Number(sale.startTime);
@@ -217,40 +254,74 @@ export function SaleDetail() {
   };
 
   const floorPriceFormatted = fmtPay(sale.price);
+  const quantityRaw = tryParseSaleTokens(quantityInput);
+  const bidPriceRaw = isDutch ? tryParsePay(bidPriceInput) : null;
+  const bidPriceInvalid =
+    isDutch && bidPriceInput.trim() !== "" && bidPriceRaw === null;
   const bidPriceBelowFloor =
-    isDutch && bidPriceInput && Number(bidPriceInput) < Number(floorPriceFormatted);
-
-  const effectivePrice = isDutch ? bidPriceInput : floorPriceFormatted;
-  const computedCost =
-    quantityInput && effectivePrice && Number(effectivePrice) > 0
-      ? (Number(quantityInput) * Number(effectivePrice)).toString()
-      : "";
+    isDutch && bidPriceRaw !== null && bidPriceRaw < sale.price;
+  const quantityInvalid = quantityInput.trim() !== "" && quantityRaw === null;
+  const quantityIsPositive = quantityRaw !== null && quantityRaw > 0n;
+  const effectivePriceRaw = isDutch ? bidPriceRaw : sale.price;
+  const computedCostRaw =
+    quantityRaw !== null && effectivePriceRaw !== null && effectivePriceRaw > 0n
+      ? (quantityRaw * effectivePriceRaw) / saleTokenScale
+      : null;
+  const computedCost = computedCostRaw !== null ? fmtPay(computedCostRaw) : "";
   const costExceedsDeposit =
-    computedCost && Number(computedCost) > Number(fmtPay(currentDeposit));
+    computedCostRaw !== null && computedCostRaw > currentDeposit;
+  const contributionDisabled =
+    !!bidStep ||
+    !quantityIsPositive ||
+    quantityInvalid ||
+    computedCostRaw === null ||
+    computedCostRaw === 0n ||
+    costExceedsDeposit ||
+    currentDeposit === 0n ||
+    (isDutch && (bidPriceRaw === null || bidPriceBelowFloor));
 
   const handleContribute = async () => {
-    if (!publicClient || !address || !quantityInput) return;
+    if (
+      !publicClient ||
+      !address ||
+      computedCostRaw === null ||
+      computedCostRaw === 0n ||
+      !quantityIsPositive
+    )
+      return;
     setError(null);
     try {
       setBidStep("Checking network...");
       await ensureSepolia();
       setBidStep("Encrypting with FHE...");
 
-      const pricePerToken = isDutch ? bidPriceInput : fmtPay(sale.price);
-      const totalAmount = Number(quantityInput) * Number(pricePerToken);
-      const raw = parsePay(totalAmount.toString());
+      if (computedCostRaw > currentDeposit) {
+        throw new Error("Cost exceeds your deposit");
+      }
+      if (isDutch && bidPriceRaw === null) {
+        throw new Error("Invalid bid price");
+      }
 
       const { encryptBidAmount } = await import("@/lib/fhevm");
-      const encrypted = await encryptBidAmount(address, raw);
+      const encrypted = await encryptBidAmount(address, computedCostRaw);
 
       if (isDutch) {
-        const bidPriceRaw = parsePay(bidPriceInput);
+        const resolvedBidPrice = bidPriceRaw;
+        if (resolvedBidPrice === null) {
+          throw new Error("Invalid bid price");
+        }
         setBidStep("Sign bid...");
         const h = await writeContractAsync({
           address: SEALPAD_ADDRESS,
           abi: SEALPAD_ABI,
           functionName: "bid",
-          args: [BigInt(saleId), bidPriceRaw, encrypted.handle, encrypted.inputProof, []],
+          args: [
+            BigInt(saleId),
+            resolvedBidPrice,
+            encrypted.handle,
+            encrypted.inputProof,
+            [],
+          ],
           chainId: REQUIRED_CHAIN_ID,
         });
         setBidStep("Confirming...");
@@ -428,7 +499,11 @@ export function SaleDetail() {
   };
 
   const statusVariant: "default" | "secondary" | "destructive" =
-    sale.status === 2 ? "default" : sale.status === 0 ? "secondary" : "destructive";
+    sale.status === 2
+      ? "default"
+      : sale.status === 0
+        ? "secondary"
+        : "destructive";
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -437,7 +512,9 @@ export function SaleDetail() {
           <p className="font-mono text-xs tracking-widest text-brand-600 mb-1">
             CONFIDENTIAL SALE
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Sale #{saleId}</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            Sale #{saleId}
+          </h1>
         </div>
         <Badge
           variant={statusVariant}
@@ -473,7 +550,7 @@ export function SaleDetail() {
               label="Total Supply"
               value={
                 <span className="font-mono">
-                  {formatEther(sale.saleAmount)} {saleLabel}
+                  {fmtSale(sale.saleAmount)} {saleLabel}
                 </span>
               }
             />
@@ -509,7 +586,8 @@ export function SaleDetail() {
             />
           </div>
 
-          {(Number(sale.cliffDuration) > 0 || Number(sale.vestingDuration) > 0) && (
+          {(Number(sale.cliffDuration) > 0 ||
+            Number(sale.vestingDuration) > 0) && (
             <div className="border-t border-slate-100 pt-3">
               <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase mb-1">
                 Vesting
@@ -536,8 +614,8 @@ export function SaleDetail() {
                 <span className="font-mono">
                   {fmtPay(sale.price)} {tokenLabel}
                 </span>
-                ). Clearing price is determined by demand. Everyone above clearing pays the
-                same uniform price.
+                ). Clearing price is determined by demand. Everyone above
+                clearing pays the same uniform price.
               </p>
             </div>
           )}
@@ -552,30 +630,42 @@ export function SaleDetail() {
           <CardContent>
             <div className="space-y-2">
               {Array.from({ length: participantCount }, (_, i) => {
-                const addr = participantResults?.[i]?.result as string | undefined;
+                const addr = participantResults?.[i]?.result as
+                  | string
+                  | undefined;
                 if (!addr) return null;
-                const isMe = address && addr.toLowerCase() === address.toLowerCase();
+                const isMe =
+                  address && addr.toLowerCase() === address.toLowerCase();
                 const pIdx = participantAddrs.indexOf(addr);
                 const pBidPrice =
                   isDutch && pIdx >= 0
                     ? (bidPriceResults?.[pIdx]?.result as bigint | undefined)
                     : undefined;
                 const pDeposit =
-                  pIdx >= 0 ? (depositResults?.[pIdx]?.result as bigint | undefined) : undefined;
+                  pIdx >= 0
+                    ? (depositResults?.[pIdx]?.result as bigint | undefined)
+                    : undefined;
                 const depositDisplay =
-                  pDeposit !== undefined ? fmtPay(pDeposit) + " " + tokenLabel : "...";
-                const statusLabel = sale.status >= 2 ? "Remaining:" : "Deposit:";
+                  pDeposit !== undefined
+                    ? fmtPay(pDeposit) + " " + tokenLabel
+                    : "...";
+                const statusLabel =
+                  sale.status >= 2 ? "Remaining:" : "Deposit:";
 
                 return (
                   <div
                     key={i}
                     className={`flex flex-col gap-2 rounded-md border p-3 text-sm ${
-                      isMe ? "border-brand-300 bg-brand-50/40" : "border-slate-200"
+                      isMe
+                        ? "border-brand-300 bg-brand-50/40"
+                        : "border-slate-200"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-slate-500 font-mono text-xs">#{i + 1}</span>
+                        <span className="text-slate-500 font-mono text-xs">
+                          #{i + 1}
+                        </span>
                         {isMe ? (
                           <Badge className="bg-brand-100 text-brand-700 border-brand-200 hover:bg-brand-100">
                             You
@@ -585,7 +675,9 @@ export function SaleDetail() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500">{statusLabel}</span>
+                        <span className="text-xs text-slate-500">
+                          {statusLabel}
+                        </span>
                         <span className="font-mono text-xs text-slate-900">
                           {depositDisplay}
                         </span>
@@ -594,20 +686,28 @@ export function SaleDetail() {
                     <div className="flex items-center justify-between">
                       {isDutch && pBidPrice !== undefined ? (
                         <>
-                          <span className="text-xs text-slate-500">Bid Price:</span>
+                          <span className="text-xs text-slate-500">
+                            Bid Price:
+                          </span>
                           <span className="font-mono text-xs text-slate-900">
                             {fmtPay(pBidPrice)} {tokenLabel}/token
                           </span>
                         </>
                       ) : (
                         <>
-                          <span className="text-xs text-slate-500">Contribution:</span>
+                          <span className="text-xs text-slate-500">
+                            Contribution:
+                          </span>
                           <Badge
                             variant="outline"
                             className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
                           >
                             <Lock size={10} weight="fill" />
-                            <ScrambleText text="ENCRYPTED" mode="live" speed={180} />
+                            <ScrambleText
+                              text="ENCRYPTED"
+                              mode="live"
+                              speed={180}
+                            />
                           </Badge>
                         </>
                       )}
@@ -620,7 +720,11 @@ export function SaleDetail() {
                           className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
                         >
                           <Lock size={10} weight="fill" />
-                          <ScrambleText text="ENCRYPTED" mode="live" speed={200} />
+                          <ScrambleText
+                            text="ENCRYPTED"
+                            mode="live"
+                            speed={200}
+                          />
                         </Badge>
                       </div>
                     )}
@@ -667,12 +771,15 @@ export function SaleDetail() {
                   onChange={(e) => setDepositInput(e.target.value)}
                 />
                 <p className="text-xs text-slate-500">
-                  Deposit is <strong>public</strong> — sets the upper bound of your contribution.
+                  Deposit is <strong>public</strong> — sets the upper bound of
+                  your contribution.
                 </p>
               </div>
               <button
                 onClick={handleDeposit}
-                disabled={!!depositStep || !depositInput || Number(depositInput) <= 0}
+                disabled={
+                  !!depositStep || !depositInput || Number(depositInput) <= 0
+                }
                 className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-3 rounded font-semibold transition-colors"
               >
                 {depositStep || "Add Deposit"}
@@ -702,16 +809,26 @@ export function SaleDetail() {
                     placeholder={`Min ${floorPriceFormatted} ${tokenLabel}`}
                     value={bidPriceInput}
                     onChange={(e) => setBidPriceInput(e.target.value)}
-                    className={bidPriceBelowFloor ? "border-rose-400" : ""}
+                    className={
+                      bidPriceBelowFloor || bidPriceInvalid
+                        ? "border-rose-400"
+                        : ""
+                    }
                   />
+                  {bidPriceInvalid && (
+                    <p className="text-xs text-rose-600">
+                      Enter a valid bid price.
+                    </p>
+                  )}
                   {bidPriceBelowFloor && (
                     <p className="text-xs text-rose-600">
-                      Bid price must be at least {floorPriceFormatted} {tokenLabel} (floor price).
+                      Bid price must be at least {floorPriceFormatted}{" "}
+                      {tokenLabel} (floor price).
                     </p>
                   )}
                   <p className="text-xs text-slate-500">
-                    <strong>Public</strong> — your chosen price per token. Floor: {floorPriceFormatted}{" "}
-                    {tokenLabel}.
+                    <strong>Public</strong> — your chosen price per token.
+                    Floor: {floorPriceFormatted} {tokenLabel}.
                   </p>
                 </div>
               )}
@@ -725,6 +842,11 @@ export function SaleDetail() {
                   value={quantityInput}
                   onChange={(e) => setQuantityInput(e.target.value)}
                 />
+                {quantityInvalid && (
+                  <p className="text-xs text-rose-600">
+                    Enter a valid token quantity.
+                  </p>
+                )}
                 {computedCost && (
                   <div
                     className={`flex items-center justify-between rounded border px-3 py-2.5 text-sm ${
@@ -741,31 +863,27 @@ export function SaleDetail() {
                 )}
                 {costExceedsDeposit && (
                   <p className="text-xs text-rose-600">
-                    Cost exceeds your deposit ({fmtPay(currentDeposit)} {tokenLabel}). Add more
-                    deposit first.
+                    Cost exceeds your deposit ({fmtPay(currentDeposit)}{" "}
+                    {tokenLabel}). Add more deposit first.
                   </p>
                 )}
                 <p className="text-xs text-slate-500 inline-flex items-center gap-1.5">
                   <Lock size={10} weight="fill" className="text-brand-500" />
                   <span>
-                    <strong>FHE-encrypted</strong> — nobody can see how many tokens you're buying.
-                    {isDutch && " Everyone above clearing pays the uniform price."}
+                    <strong>FHE-encrypted</strong> — nobody can see how many
+                    tokens you're buying.
+                    {isDutch &&
+                      " Everyone above clearing pays the uniform price."}
                   </span>
                 </p>
               </div>
               <button
                 onClick={handleContribute}
-                disabled={
-                  !!bidStep ||
-                  !quantityInput ||
-                  Number(quantityInput) <= 0 ||
-                  !!costExceedsDeposit ||
-                  BigInt(currentDeposit) === 0n ||
-                  (isDutch && (!bidPriceInput || !!bidPriceBelowFloor))
-                }
+                disabled={contributionDisabled}
                 className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-3 rounded font-semibold transition-colors"
               >
-                {bidStep || (hasJoined ? "Update (no transfer)" : "Encrypt & Submit")}
+                {bidStep ||
+                  (hasJoined ? "Update (no transfer)" : "Encrypt & Submit")}
               </button>
             </CardContent>
           </Card>
@@ -775,7 +893,9 @@ export function SaleDetail() {
       {sale.status === 0 && isEnded && (
         <Card>
           <CardContent className="py-6 text-center space-y-4">
-            <p className="text-slate-600">Sale has ended. Ready for finalization.</p>
+            <p className="text-slate-600">
+              Sale has ended. Ready for finalization.
+            </p>
             <button
               onClick={handleFinalize}
               disabled={!!finalizeStep}
@@ -790,13 +910,17 @@ export function SaleDetail() {
       {sale.status === 1 && (
         <Card>
           <CardContent className="py-6 text-center space-y-4">
-            <Lock size={28} weight="duotone" className="mx-auto text-brand-500" />
+            <Lock
+              size={28}
+              weight="duotone"
+              className="mx-auto text-brand-500"
+            />
             <p className="text-slate-700">
               FHE handles published for KMS public decryption.
             </p>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Anyone can now finish the sale by fetching the decrypted values from
-              the relayer and submitting them on-chain with the KMS proof.
+              Anyone can now finish the sale by fetching the decrypted values
+              from the relayer and submitting them on-chain with the KMS proof.
             </p>
             <button
               onClick={handleSettle}
@@ -830,25 +954,28 @@ export function SaleDetail() {
               </p>
             </div>
 
-            {isConnected && userAllocation !== undefined && userAllocation > 0n && (
-              <div className="space-y-3">
-                <div className="rounded border border-slate-200 p-3 text-sm">
-                  <p className="text-slate-500">Your Allocation</p>
-                  <p className="font-mono font-bold text-lg text-slate-900 mt-1">
-                    {formatEther(userAllocation)} {saleLabel}
-                  </p>
+            {isConnected &&
+              userAllocation !== undefined &&
+              userAllocation > 0n && (
+                <div className="space-y-3">
+                  <div className="rounded border border-slate-200 p-3 text-sm">
+                    <p className="text-slate-500">Your Allocation</p>
+                    <p className="font-mono font-bold text-lg text-slate-900 mt-1">
+                      {fmtSale(userAllocation)} {saleLabel}
+                    </p>
+                  </div>
+                  {userClaimable !== undefined && userClaimable > 0n && (
+                    <button
+                      onClick={handleClaim}
+                      disabled={!!claimStep}
+                      className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white py-3 rounded font-semibold transition-colors"
+                    >
+                      {claimStep ||
+                        `Claim ${fmtSale(userClaimable)} ${saleLabel}`}
+                    </button>
+                  )}
                 </div>
-                {userClaimable !== undefined && userClaimable > 0n && (
-                  <button
-                    onClick={handleClaim}
-                    disabled={!!claimStep}
-                    className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white py-3 rounded font-semibold transition-colors"
-                  >
-                    {claimStep || `Claim ${formatEther(userClaimable)} ${saleLabel}`}
-                  </button>
-                )}
-              </div>
-            )}
+              )}
 
             {isConnected && BigInt(currentDeposit) > 0n && (
               <button
@@ -891,7 +1018,9 @@ export function SaleDetail() {
 function Detail({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">{label}</p>
+      <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+        {label}
+      </p>
       <p className="font-medium text-slate-900 mt-1">{value}</p>
     </div>
   );

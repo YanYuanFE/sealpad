@@ -6,8 +6,8 @@ const links = [
   { href: "#protocol", label: "PROTOCOL" },
   { href: "#flow", label: "LAUNCHPAD" },
   { href: "#architecture", label: "ARCHITECTURE" },
-  { href: "https://github.com/YanYuanFE/sealpad", label: "DOCS", external: true },
-];
+  { to: "/app/docs", label: "DOCS" },
+] as const;
 
 export function Navbar() {
   return (
@@ -20,14 +20,15 @@ export function Navbar() {
       <ul className="hidden lg:flex items-center gap-10 font-mono text-xs tracking-widest text-slate-700">
         {links.map((l) => (
           <li key={l.label}>
-            <a
-              href={l.href}
-              target={l.external ? "_blank" : undefined}
-              rel={l.external ? "noopener noreferrer" : undefined}
-              className="hover:text-brand-600 transition-colors"
-            >
-              {l.label}
-            </a>
+            {"to" in l ? (
+              <Link to={l.to} className="hover:text-brand-600 transition-colors">
+                {l.label}
+              </Link>
+            ) : (
+              <a href={l.href} className="hover:text-brand-600 transition-colors">
+                {l.label}
+              </a>
+            )}
           </li>
         ))}
       </ul>

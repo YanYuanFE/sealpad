@@ -5,6 +5,7 @@ import { Home } from "@/pages/Home";
 import { CreateSale } from "@/pages/CreateSale";
 import { SaleDetail } from "@/pages/SaleDetail";
 import { MyActivity } from "@/pages/MyActivity";
+import { Docs } from "@/pages/Docs";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="create" element={<CreateSale />} />
           <Route path="sale/:id" element={<SaleDetail />} />
           <Route path="my" element={<MyActivity />} />
+          <Route path="docs" element={<Docs />} />
         </Route>
       </Routes>
     </BrowserRouter>

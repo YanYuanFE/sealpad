@@ -1,5 +1,5 @@
 // Contract address — update after deployment
-export const SEALPAD_ADDRESS = (import.meta.env.VITE_SEALPAD_ADDRESS || "0x18C28BEFDfE6107Ee83d1D1D173D6C88bD335F42") as `0x${string}`;
+export const SEALPAD_ADDRESS = (import.meta.env.VITE_SEALPAD_ADDRESS || "0x16FB75310600a0d0D9919C29b3D7bE82e06e1B2f") as `0x${string}`;
 
 // ABI — only the functions we need on the frontend
 export const SEALPAD_ABI = [
@@ -154,6 +154,7 @@ export const SEALPAD_ABI = [
           { name: "clearingPrice", type: "uint64" },
           { name: "totalRaised", type: "uint64" },
           { name: "settledAt", type: "uint64" },
+          { name: "saleTokenScale", type: "uint256" },
         ],
       },
     ],

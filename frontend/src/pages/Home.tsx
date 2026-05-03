@@ -1,13 +1,24 @@
 import { Link } from "react-router-dom";
 import { useReadContract, useReadContracts } from "wagmi";
-import { formatEther, formatUnits } from "viem";
+import { erc20Abi, formatEther, formatUnits } from "viem";
 import { Plus, Lock } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SEALPAD_ADDRESS, SEALPAD_ABI } from "@/config/contracts";
-import { SaleTypeLabel, SaleStatusLabel, isETHPayToken, formatDuration } from "@/lib/constants";
+import {
+  SaleTypeLabel,
+  SaleStatusLabel,
+  isETHPayToken,
+  formatDuration,
+} from "@/lib/constants";
 
-const StatusVariant = ["secondary", "default", "default", "destructive", "secondary"] as const;
+const StatusVariant = [
+  "secondary",
+  "default",
+  "default",
+  "destructive",
+  "secondary",
+] as const;
 
 type SaleData = {
   creator: string;
@@ -29,16 +40,26 @@ type SaleData = {
   clearingPrice: bigint;
   totalRaised: bigint;
   settledAt: bigint;
+  saleTokenScale: bigint;
 };
 
-function SaleCard({ id, sale }: { id: number; sale: SaleData }) {
+function SaleCard({
+  id,
+  sale,
+  payTokenDecimals,
+}: {
+  id: number;
+  sale: SaleData;
+  payTokenDecimals?: number;
+}) {
   const now = Math.floor(Date.now() / 1000);
   const start = Number(sale.startTime);
   const end = Number(sale.endTime);
   const isETH = isETHPayToken(sale.payToken);
   const tokenLabel = isETH ? "ETH" : "tokens";
+  const decimals = isETH ? 18 : (payTokenDecimals ?? 6);
   const fmtPrice = (raw: bigint | number) =>
-    isETH ? formatEther(BigInt(raw)) : formatUnits(BigInt(raw), 6);
+    isETH ? formatEther(BigInt(raw)) : formatUnits(BigInt(raw), decimals);
 
   let timeInfo = "";
   if (sale.status === 0) {
@@ -56,7 +77,10 @@ function SaleCard({ id, sale }: { id: number; sale: SaleData }) {
           </CardTitle>
           <Badge
             variant={
-              StatusVariant[sale.status] as "default" | "secondary" | "destructive"
+              StatusVariant[sale.status] as
+                | "default"
+                | "secondary"
+                | "destructive"
             }
             className="font-mono text-[10px] tracking-widest uppercase"
           >
@@ -66,8 +90,12 @@ function SaleCard({ id, sale }: { id: number; sale: SaleData }) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">Type</p>
-              <p className="font-medium text-slate-900 mt-1">{SaleTypeLabel[sale.saleType]}</p>
+              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                Type
+              </p>
+              <p className="font-medium text-slate-900 mt-1">
+                {SaleTypeLabel[sale.saleType]}
+              </p>
             </div>
             <div>
               <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
@@ -78,13 +106,17 @@ function SaleCard({ id, sale }: { id: number; sale: SaleData }) {
               </p>
             </div>
             <div>
-              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">Hard Cap</p>
+              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                Hard Cap
+              </p>
               <p className="font-mono font-medium text-slate-900 mt-1">
                 {fmtPrice(sale.hardCap)} {tokenLabel}
               </p>
             </div>
             <div>
-              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">Sealed Bids</p>
+              <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
+                Sealed Bids
+              </p>
               <p className="font-medium text-slate-900 mt-1 inline-flex items-center gap-1.5">
                 {sale.participantCount}
                 <Lock size={12} weight="fill" className="text-brand-500" />
@@ -128,6 +160,33 @@ export function Home() {
     query: { enabled: saleCount > 0, refetchInterval: 30000 },
   });
 
+  const payTokenDecimalCalls = Array.from({ length: saleCount }, (_, i) => {
+    const sale = saleResults?.[i]?.result as unknown as SaleData | undefined;
+    if (!sale || isETHPayToken(sale.payToken)) return null;
+    return { id: i, address: sale.payToken as `0x${string}` };
+  }).filter(
+    (call): call is { id: number; address: `0x${string}` } => call !== null,
+  );
+
+  const { data: payTokenDecimalResults } = useReadContracts({
+    contracts: payTokenDecimalCalls.map(({ address }) => ({
+      address,
+      abi: erc20Abi,
+      functionName: "decimals" as const,
+    })),
+    query: { enabled: payTokenDecimalCalls.length > 0, refetchInterval: 30000 },
+  });
+
+  const payTokenDecimalsBySaleId = new Map<number, number>();
+  payTokenDecimalCalls.forEach(({ id }, index) => {
+    const result = payTokenDecimalResults?.[index]?.result;
+    if (typeof result === "number") {
+      payTokenDecimalsBySaleId.set(id, result);
+    } else if (typeof result === "bigint") {
+      payTokenDecimalsBySaleId.set(id, Number(result));
+    }
+  });
+
   return (
     <div className="space-y-8">
       <div className="flex items-end justify-between flex-wrap gap-4">
@@ -135,7 +194,9 @@ export function Home() {
           <p className="font-mono text-xs tracking-widest text-brand-600 mb-2">
             CONFIDENTIAL LAUNCHPAD
           </p>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Token Sales</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+            Token Sales
+          </h1>
           <p className="text-slate-600 mt-1">
             Encrypted contributions. Fair price discovery. On-chain settlement.
           </p>
@@ -152,17 +213,30 @@ export function Home() {
       {saleCount === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-slate-500">
-            <Lock size={28} weight="duotone" className="mx-auto mb-3 text-brand-500" />
+            <Lock
+              size={28}
+              weight="duotone"
+              className="mx-auto mb-3 text-brand-500"
+            />
             <p>No sales yet. Be the first to launch one.</p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4">
-          {Array.from({ length: saleCount }, (_, i) => saleCount - 1 - i).map((id) => {
-            const result = saleResults?.[id];
-            if (!result?.result) return null;
-            return <SaleCard key={id} id={id} sale={result.result as unknown as SaleData} />;
-          })}
+          {Array.from({ length: saleCount }, (_, i) => saleCount - 1 - i).map(
+            (id) => {
+              const result = saleResults?.[id];
+              if (!result?.result) return null;
+              return (
+                <SaleCard
+                  key={id}
+                  id={id}
+                  sale={result.result as unknown as SaleData}
+                  payTokenDecimals={payTokenDecimalsBySaleId.get(id)}
+                />
+              );
+            },
+          )}
         </div>
       )}
     </div>

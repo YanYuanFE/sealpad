@@ -244,8 +244,17 @@ export function CreateSale() {
       setStep("Checking network...");
       await ensureSepolia();
 
+      setStep("Reading sale token decimals...");
+      const saleTokenDecimals = Number(
+        await publicClient.readContract({
+          address: saleToken as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "decimals",
+        }),
+      );
+      const saleAmountRaw = parseUnits(saleAmount, saleTokenDecimals);
+
       setStep("Sign token approval...");
-      const saleAmountRaw = parseEther(saleAmount);
       const approveHash = await writeContractAsync({
         address: saleToken as `0x${string}`,
         abi: erc20Abi,
@@ -377,7 +386,7 @@ export function CreateSale() {
               value={saleAmount}
               onChange={(e) => setSaleAmount(e.target.value)}
             />
-            <FieldHint>Whole tokens. The contract assumes 18 decimals.</FieldHint>
+            <FieldHint>Whole tokens. Decimals are read from the token at create time.</FieldHint>
           </div>
         </CardContent>
       </Card>
