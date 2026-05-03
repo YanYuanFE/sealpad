@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {FHE, euint64, externalEuint64} from "@fhevm/solidity/lib/FHE.sol";
 import {ZamaEthereumConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
@@ -58,6 +59,9 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         uint64 clearingPrice;
         uint64 totalRaised;
         uint64 settledAt;
+        // 10**saleToken.decimals(); locked at createSale. price means
+        // "payToken raw units per 1 whole sale token", regardless of decimals.
+        uint256 saleTokenScale;
     }
 
     // ============================================================
@@ -92,8 +96,8 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         bool hasOverflow;
         uint256 overflowDemand; // total tokens demanded at clearing price level
         uint256 overflowRemaining; // remaining tokens when clearing price reached
-        uint64 totalContributed;
         bool found; // whether a clearing price was determined
+        uint256 saleTokenScale; // mirror of Sale.saleTokenScale, copied for pure helpers
     }
 
     // ============================================================
@@ -101,7 +105,6 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
     // ============================================================
 
     uint8 public constant MAX_PARTICIPANTS = 50;
-    uint256 public constant PRICE_SCALE = 1e18;
 
     // ============================================================
     //                          EVENTS
@@ -197,7 +200,10 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         if (p.softCap == 0 || p.softCap > p.hardCap) revert InvalidParams();
         if (p.saleAmount == 0) revert InvalidParams();
         if (p.price == 0) revert InvalidParams();
-        if (p.saleType == SaleType.FixedPrice && uint256(p.hardCap) > Math.mulDiv(p.saleAmount, p.price, PRICE_SCALE))
+
+        uint256 scale = 10 ** uint256(IERC20Metadata(p.saleToken).decimals());
+
+        if (p.saleType == SaleType.FixedPrice && uint256(p.hardCap) > Math.mulDiv(p.saleAmount, p.price, scale))
             revert InvalidParams();
 
         saleId = nextSaleId++;
@@ -218,6 +224,7 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         s.cliffDuration = p.cliffDuration;
         s.vestingDuration = p.vestingDuration;
         s.status = SaleStatus.Active;
+        s.saleTokenScale = scale;
 
         // Lock sale tokens
         IERC20(p.saleToken).safeTransferFrom(msg.sender, address(this), p.saleAmount);
@@ -428,7 +435,10 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
 
         FHE.checkSignatures(handles, _encodeUint64Array(decryptedValues), decryptionProof);
 
-        uint64 decryptedTotal = decryptedValues[0];
+        uint256 decryptedTotal = 0;
+        for (uint256 i = 0; i < n; i++) {
+            decryptedTotal += decryptedValues[1 + i];
+        }
 
         if (decryptedTotal < s.softCap) {
             s.status = SaleStatus.Failed;
@@ -438,7 +448,7 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         }
 
         bool isOverflow = decryptedTotal > s.hardCap;
-        uint64 effectiveRaised = isOverflow ? s.hardCap : decryptedTotal;
+        uint256 effectiveRaised = isOverflow ? uint256(s.hardCap) : decryptedTotal;
 
         uint256 totalPayment = 0;
         uint256 totalTokensAllocated = 0;
@@ -450,11 +460,11 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
             uint256 effectiveContribution =
                 isOverflow ? (uint256(contribution) * effectiveRaised) / decryptedTotal : contribution;
 
-            uint256 tokens = (effectiveContribution * PRICE_SCALE) / s.price;
+            uint256 tokens = (effectiveContribution * s.saleTokenScale) / s.price;
             uint256 payment = effectiveContribution;
             if (totalTokensAllocated + tokens > s.saleAmount) {
                 tokens = s.saleAmount - totalTokensAllocated;
-                payment = (tokens * s.price) / PRICE_SCALE;
+                payment = (tokens * s.price) / s.saleTokenScale;
             }
 
             allocations[saleId][user] = tokens;
@@ -544,13 +554,9 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         uint256 n,
         uint64[] calldata decryptedValues
     ) internal view returns (ClearingResult memory cr) {
-        uint256 remaining = s.saleAmount;
+        uint256 acceptedTokens = 0;
         bool[] memory processed = new bool[](n);
-
-        // Sum total contributed
-        for (uint256 i = 0; i < n; i++) {
-            cr.totalContributed += decryptedValues[i];
-        }
+        cr.saleTokenScale = s.saleTokenScale;
 
         // Process bid price levels from highest to lowest.
         for (uint256 round = 0; round < n; round++) {
@@ -575,20 +581,27 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
                     userBidPrice[saleId][_participants[saleId][i]] == maxPrice
                 ) {
                     processed[i] = true;
-                    levelDemand += (uint256(decryptedValues[i]) * PRICE_SCALE) / maxPrice;
+                    levelDemand += (uint256(decryptedValues[i]) * s.saleTokenScale) / maxPrice;
                 }
             }
 
-            if (levelDemand <= remaining) {
-                remaining -= levelDemand;
-                cr.clearingPrice = maxPrice;
-                cr.found = true;
+            uint256 tokenCapacityAtPrice = Math.mulDiv(uint256(s.hardCap), s.saleTokenScale, maxPrice);
+            if (tokenCapacityAtPrice > s.saleAmount) {
+                tokenCapacityAtPrice = s.saleAmount;
+            }
+
+            cr.clearingPrice = maxPrice;
+            cr.found = true;
+
+            uint256 available = tokenCapacityAtPrice - acceptedTokens;
+            if (levelDemand < available) {
+                acceptedTokens += levelDemand;
             } else {
-                cr.clearingPrice = maxPrice;
-                cr.found = true;
-                cr.hasOverflow = true;
-                cr.overflowRemaining = remaining;
-                cr.overflowDemand = levelDemand;
+                if (levelDemand > available) {
+                    cr.hasOverflow = true;
+                    cr.overflowRemaining = available;
+                    cr.overflowDemand = levelDemand;
+                }
                 break;
             }
         }
@@ -659,7 +672,7 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         if (contribution == 0 || uPrice < cr.clearingPrice) return (0, 0);
 
         // Tokens user wants at their bid price
-        tokens = (uint256(contribution) * PRICE_SCALE) / uPrice;
+        tokens = (uint256(contribution) * cr.saleTokenScale) / uPrice;
 
         if (uPrice == cr.clearingPrice && cr.hasOverflow) {
             // Pro-rata at clearing price level
@@ -667,7 +680,7 @@ contract SealPad is ZamaEthereumConfig, ReentrancyGuard {
         }
 
         // Everyone pays uniform clearing price
-        payment = (tokens * cr.clearingPrice) / PRICE_SCALE;
+        payment = (tokens * cr.clearingPrice) / cr.saleTokenScale;
     }
 
     // ============================================================
