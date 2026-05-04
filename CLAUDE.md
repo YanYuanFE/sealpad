@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SealPad** — Confidential Token Sale Platform for the Zama Developer Program (Mainnet Season 2, Builder Track). Two-package monorepo (no workspace file): an FHEVM Hardhat project under `contracts/` and a Vite + React frontend under `frontend/`. The full design is in `TECHNICAL_DESIGN.md` (Chinese).
 
-The deployed `SealPad` contract on Sepolia (chainId `11155111`) is at `0x18C28BEFDfE6107Ee83d1D1D173D6C88bD335F42` — this address is hardcoded in `frontend/src/config/contracts.ts` and persisted in `contracts/deployments/sepolia/`.
+The deployed `SealPad` contract on Sepolia (chainId `11155111`) is at `0x16FB75310600a0d0D9919C29b3D7bE82e06e1B2f` — this address is hardcoded in `frontend/src/config/contracts.ts`. The local `contracts/deployments/sepolia/` directory is `.gitignore`d, so the address constant is the single canonical source.
 
 ## Common commands
 
@@ -95,7 +95,7 @@ The contract reconstructs the handle array in the same order and passes both to 
 
 `SaleDetail.tsx` is the only page that calls `encryptBidAmount` (dynamic import to avoid loading the SDK on every page). It computes total cost as `quantity × pricePerToken` (Dutch uses user-entered bidPrice; FixedPrice uses `sale.price`), validates against `currentDeposit`, then calls `contribute` for FixedPrice or `bid` for Dutch.
 
-The frontend tracks pay-token decimals dynamically: ETH uses `parseEther/formatEther`, ERC-20 calls `decimals()` and uses `parseUnits/formatUnits`. **Sale token amounts are always treated as 18-decimal** (`formatEther(sale.saleAmount)`); creating a sale token with non-18 decimals will display incorrectly.
+The frontend tracks both pay-token and sale-token decimals dynamically by calling `decimals()` on the respective ERC-20 (ETH always uses `parseEther/formatEther`). Sale-token amounts (`sale.saleAmount`, `allocations`, `claimable`) are formatted via `parseUnits/formatUnits` keyed off the saleToken's decimals; the per-sale `sale.saleTokenScale = 10**decimals()` is also stored on-chain in the `Sale` struct so cost math (`computedCostRaw = quantity × price / saleTokenScale`) stays consistent across decimals.
 
 ### ABI source of truth
 
@@ -104,14 +104,14 @@ The frontend tracks pay-token decimals dynamically: ETH uses `parseEther/formatE
 ## Solidity / FHEVM specifics
 
 - Solc `0.8.27`, `viaIR: true`, `evmVersion: cancun`, `runs: 800`. Always run `npm run compile` after editing `.sol` — typechain regenerates and the frontend ABI must be updated separately if signatures changed.
-- `MAX_PARTICIPANTS = 50`, `PRICE_SCALE = 1e18` are protocol-wide constants.
-- All payment math uses `uint64` for compatibility with FHE `euint64`. Token allocations are `uint256` because they're unencrypted and scaled by `PRICE_SCALE`.
+- `MAX_PARTICIPANTS = 50` is the only protocol-wide constant. The token-side scale is per-sale (`Sale.saleTokenScale = 10**IERC20Metadata.decimals()`, locked at `createSale`); all token-math sites (`settleFixed`, `_computeClearing`, `_computeUserDutchAllocation`, `createSale` hardCap check) use this per-sale scale via `s.saleTokenScale` or the `cr.saleTokenScale` mirror in `ClearingResult`.
+- All payment math uses `uint64` for compatibility with FHE `euint64`. Token allocations are `uint256` because they're unencrypted and scaled by `saleTokenScale`. The `price` field semantics are uniform: payToken raw units per 1 whole sale token, regardless of decimals.
 - `payToken == address(0)` means native ETH throughout the contract; the helper is `_isETH`.
 - Tests live in `contracts/test/SealPad.ts` and skip themselves if `fhevm.isMock` is false — the suite only runs under the FHEVM mock harness.
 
 ## Conventions and gotchas
 
-- The frontend's hardcoded contract address is the single source of truth at runtime; redeploying requires updating both `contracts/deployments/sepolia/` (auto by hardhat-deploy) and the constant in `contracts.ts` (manually, or set `VITE_SEALPAD_ADDRESS`).
-- `frontend/dist/` is checked in (or last-built); `frontend/.gitignore` excludes `node_modules` only — be careful when committing build artifacts.
+- The frontend's hardcoded contract address is the single source of truth at runtime; redeploying requires updating the constant in `contracts.ts` (manually, or set `VITE_SEALPAD_ADDRESS`). `contracts/deployments/sepolia/` is `.gitignore`d, so the deployment artifact only lives on whichever machine ran `npm run deploy:sepolia`.
+- `frontend/dist/` is `.gitignore`d (excluded along with `node_modules`); commit only sources, not build output.
 - The Tailwind theme uses `--radius: 0` globally (intentional sharp-corner aesthetic). Custom colors live in `src/index.css` under `@theme inline` (`canvas`, `ink-dark`, `ink-medium`, `brand-500`).
 - WalletConnect projectId in `wagmi.ts` is a placeholder (`"00000000000000000000000000000000"`); replace before any production deploy.
