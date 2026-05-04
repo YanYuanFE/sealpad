@@ -261,11 +261,30 @@ export function CreateSale() {
     softCapValid && hardCapValid && Number(hardCap) >= Number(softCap);
   const maxPerUserValid = isNonNegativeDecimal(maxPerUser);
 
+  // Mirror SaleVault.initialize's check: for fixed-price sales, hardCap must
+  // be reachable given saleAmount × price. We can't compute this in raw units
+  // here without live token decimals, but a float check using the same
+  // user-entered numbers catches the common case (e.g. "10000 tokens at 0.00001
+  // ETH each, hardCap 1 ETH" → max raise is only 0.1 ETH, would revert).
+  const isFixedPrice = saleType === 0;
+  const maxFixedRaise = useMemo(() => {
+    if (!isFixedPrice) return null;
+    if (!isPositiveDecimal(saleAmount) || !isPositiveDecimal(price))
+      return null;
+    return Number(saleAmount) * Number(price);
+  }, [isFixedPrice, saleAmount, price]);
+  const hardCapExceedsCapacity =
+    isFixedPrice &&
+    hardCapValid &&
+    maxFixedRaise !== null &&
+    Number(hardCap) > maxFixedRaise;
+
   const formValid =
     isValidSaleToken &&
     isValidPayToken &&
     isPositiveDecimal(saleAmount) &&
     isPositiveDecimal(price) &&
+    !hardCapExceedsCapacity &&
     softCapValid &&
     hardCapValid &&
     capOrderValid &&
@@ -559,6 +578,15 @@ export function CreateSale() {
                   : "Soft cap must be ≤ Hard cap."}
               </FieldHint>
             )}
+          {hardCapExceedsCapacity && maxFixedRaise !== null && (
+            <FieldHint error>
+              Hard cap {hardCap} {isETH ? "ETH" : "pay token"} exceeds the
+              maximum possible raise ({maxFixedRaise}{" "}
+              {isETH ? "ETH" : "pay token"}) — at {price} per token ×{" "}
+              {saleAmount} tokens, the sale can&rsquo;t raise more than that.
+              Reduce hard cap or sell more tokens.
+            </FieldHint>
+          )}
 
           <div className="space-y-2">
             <Label>Max Per User ({isETH ? "ETH" : "pay token"})</Label>
