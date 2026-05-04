@@ -202,6 +202,23 @@ export function CreateSale() {
     startUnix !== null && endUnix !== null && endUnix <= startUnix;
   const tooShort = durationSec > 0 && durationSec < 60;
 
+  // Decimal-string validators. `parseUnits` is the runtime source of truth,
+  // but we use these for cheap form-level gating without needing live token
+  // decimals. The regex rejects empty / Infinity / NaN / "1e10" / "abc".
+  const decimalRe = /^\d+(\.\d+)?$/;
+  const isPositiveDecimal = (s: string) => {
+    const v = s.trim();
+    if (!decimalRe.test(v)) return false;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0;
+  };
+  const isNonNegativeDecimal = (s: string) => {
+    const v = s.trim();
+    if (!decimalRe.test(v)) return false;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0;
+  };
+
   const scheduleValid =
     startUnix !== null &&
     endUnix !== null &&
@@ -223,17 +240,21 @@ export function CreateSale() {
     cliffSec + vestingSec > 0; // at least one of them must be > 0 when enabled
 
   // ---------- Cap validation ----------
-  const softCapNum = Number(softCap);
-  const hardCapNum = Number(hardCap);
-  const capValid =
-    softCapNum > 0 && hardCapNum >= softCapNum && hardCapNum > 0;
+  const softCapValid = isPositiveDecimal(softCap);
+  const hardCapValid = isPositiveDecimal(hardCap);
+  const capOrderValid =
+    softCapValid && hardCapValid && Number(hardCap) >= Number(softCap);
+  const maxPerUserValid = isNonNegativeDecimal(maxPerUser);
 
   const formValid =
     isValidSaleToken &&
     isValidPayToken &&
-    Number(saleAmount) > 0 &&
-    Number(price) > 0 &&
-    capValid &&
+    isPositiveDecimal(saleAmount) &&
+    isPositiveDecimal(price) &&
+    softCapValid &&
+    hardCapValid &&
+    capOrderValid &&
+    maxPerUserValid &&
     scheduleValid &&
     vestingValid;
 
@@ -280,18 +301,26 @@ export function CreateSale() {
 
       setStep("Sign sale creation...");
 
-      const parsePayAmount = (v: string) =>
-        isETH ? parseEther(v) : parseUnits(v, payTokenDecimals);
+      const parsePayAmount = (label: string, v: string) => {
+        try {
+          return isETH ? parseEther(v) : parseUnits(v, payTokenDecimals);
+        } catch {
+          throw new Error(
+            `${label} is not a valid amount for the chosen pay token.`,
+          );
+        }
+      };
 
       const params = {
         saleToken: saleToken as `0x${string}`,
         saleAmount: saleAmountRaw,
         payToken,
         saleType,
-        price: parsePayAmount(price),
-        softCap: parsePayAmount(softCap),
-        hardCap: parsePayAmount(hardCap),
-        maxPerUser: maxPerUser === "0" ? 0n : parsePayAmount(maxPerUser),
+        price: parsePayAmount("Price", price),
+        softCap: parsePayAmount("Soft cap", softCap),
+        hardCap: parsePayAmount("Hard cap", hardCap),
+        // 0 = "no limit"; treat any string that parses to 0 the same way.
+        maxPerUser: parsePayAmount("Max per user", maxPerUser.trim() || "0"),
         startTime: BigInt(startUnix!),
         endTime: BigInt(endUnix!),
         whitelistRoot:
@@ -446,7 +475,9 @@ export function CreateSale() {
                 inputMode="decimal"
                 value={softCap}
                 onChange={(e) => setSoftCap(e.target.value)}
-                className={!capValid && softCapNum > 0 ? "border-rose-400" : ""}
+                className={
+                  softCap.trim() !== "" && !softCapValid ? "border-rose-400" : ""
+                }
               />
             </div>
             <div className="space-y-2">
@@ -456,15 +487,20 @@ export function CreateSale() {
                 inputMode="decimal"
                 value={hardCap}
                 onChange={(e) => setHardCap(e.target.value)}
-                className={!capValid && hardCapNum > 0 ? "border-rose-400" : ""}
+                className={
+                  hardCap.trim() !== "" && !hardCapValid ? "border-rose-400" : ""
+                }
               />
             </div>
           </div>
-          {!capValid && (
-            <FieldHint error>
-              Soft cap must be &gt; 0 and ≤ Hard cap.
-            </FieldHint>
-          )}
+          {(softCap.trim() !== "" || hardCap.trim() !== "") &&
+            (!softCapValid || !hardCapValid || !capOrderValid) && (
+              <FieldHint error>
+                {!softCapValid || !hardCapValid
+                  ? "Caps must be positive decimal numbers."
+                  : "Soft cap must be ≤ Hard cap."}
+              </FieldHint>
+            )}
 
           <div className="space-y-2">
             <Label>Max Per User ({isETH ? "ETH" : "pay token"})</Label>

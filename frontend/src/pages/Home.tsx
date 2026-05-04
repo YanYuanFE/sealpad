@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReadContract, useReadContracts } from "wagmi";
 import { erc20Abi, formatEther, formatUnits } from "viem";
@@ -47,12 +48,13 @@ function SaleCard({
   id,
   sale,
   payTokenDecimals,
+  now,
 }: {
   id: number;
   sale: SaleData;
   payTokenDecimals?: number;
+  now: number;
 }) {
-  const now = Math.floor(Date.now() / 1000);
   const start = Number(sale.startTime);
   const end = Number(sale.endTime);
   const isETH = isETHPayToken(sale.payToken);
@@ -139,6 +141,15 @@ function SaleCard({
 }
 
 export function Home() {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setNow(Math.floor(Date.now() / 1000)),
+      30_000,
+    );
+    return () => window.clearInterval(id);
+  }, []);
+
   const { data: nextId } = useReadContract({
     address: SEALPAD_ADDRESS,
     abi: SEALPAD_ABI,
@@ -148,44 +159,74 @@ export function Home() {
 
   const saleCount = nextId !== undefined ? Number(nextId) : 0;
 
-  const saleCalls = Array.from({ length: saleCount }, (_, i) => ({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "getSale" as const,
-    args: [BigInt(i)] as const,
-  }));
+  const saleCalls = useMemo(
+    () =>
+      Array.from({ length: saleCount }, (_, i) => ({
+        address: SEALPAD_ADDRESS,
+        abi: SEALPAD_ABI,
+        functionName: "getSale" as const,
+        args: [BigInt(i)] as const,
+      })),
+    [saleCount],
+  );
 
   const { data: saleResults } = useReadContracts({
     contracts: saleCalls,
     query: { enabled: saleCount > 0, refetchInterval: 30000 },
   });
 
-  const payTokenDecimalCalls = Array.from({ length: saleCount }, (_, i) => {
-    const sale = saleResults?.[i]?.result as unknown as SaleData | undefined;
-    if (!sale || isETHPayToken(sale.payToken)) return null;
-    return { id: i, address: sale.payToken as `0x${string}` };
-  }).filter(
-    (call): call is { id: number; address: `0x${string}` } => call !== null,
+  // Resolve which sales need a payToken.decimals() lookup. Stable string
+  // identity ("0|0xabc,1|0xdef,...") lets useMemo bail out when the underlying
+  // pay-token addresses haven't actually changed across saleResults refetches.
+  const payTokenLookupKey = useMemo(() => {
+    if (!saleResults) return "";
+    const parts: string[] = [];
+    for (let i = 0; i < saleCount; i++) {
+      const sale = saleResults[i]?.result as unknown as SaleData | undefined;
+      if (!sale || isETHPayToken(sale.payToken)) continue;
+      parts.push(`${i}|${sale.payToken.toLowerCase()}`);
+    }
+    return parts.join(",");
+  }, [saleResults, saleCount]);
+
+  const payTokenDecimalCalls = useMemo(() => {
+    if (!payTokenLookupKey) return [];
+    return payTokenLookupKey.split(",").map((entry) => {
+      const [idStr, address] = entry.split("|");
+      return { id: Number(idStr), address: address as `0x${string}` };
+    });
+  }, [payTokenLookupKey]);
+
+  const payTokenDecimalContracts = useMemo(
+    () =>
+      payTokenDecimalCalls.map(({ address }) => ({
+        address,
+        abi: erc20Abi,
+        functionName: "decimals" as const,
+      })),
+    [payTokenDecimalCalls],
   );
 
   const { data: payTokenDecimalResults } = useReadContracts({
-    contracts: payTokenDecimalCalls.map(({ address }) => ({
-      address,
-      abi: erc20Abi,
-      functionName: "decimals" as const,
-    })),
-    query: { enabled: payTokenDecimalCalls.length > 0, refetchInterval: 30000 },
+    contracts: payTokenDecimalContracts,
+    query: {
+      enabled: payTokenDecimalContracts.length > 0,
+      refetchInterval: 30000,
+    },
   });
 
-  const payTokenDecimalsBySaleId = new Map<number, number>();
-  payTokenDecimalCalls.forEach(({ id }, index) => {
-    const result = payTokenDecimalResults?.[index]?.result;
-    if (typeof result === "number") {
-      payTokenDecimalsBySaleId.set(id, result);
-    } else if (typeof result === "bigint") {
-      payTokenDecimalsBySaleId.set(id, Number(result));
-    }
-  });
+  const payTokenDecimalsBySaleId = useMemo(() => {
+    const map = new Map<number, number>();
+    payTokenDecimalCalls.forEach(({ id }, index) => {
+      const result = payTokenDecimalResults?.[index]?.result;
+      if (typeof result === "number") {
+        map.set(id, result);
+      } else if (typeof result === "bigint") {
+        map.set(id, Number(result));
+      }
+    });
+    return map;
+  }, [payTokenDecimalCalls, payTokenDecimalResults]);
 
   return (
     <div className="space-y-8">
@@ -233,6 +274,7 @@ export function Home() {
                   id={id}
                   sale={result.result as unknown as SaleData}
                   payTokenDecimals={payTokenDecimalsBySaleId.get(id)}
+                  now={now}
                 />
               );
             },

@@ -23,13 +23,20 @@ export async function getFhevmInstance(): Promise<FhevmInstance> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
-    await initSDK();
-    const inst = await createInstance({
-      ...SepoliaConfig,
-      network: SEPOLIA_RPC_URL,
-    });
-    instance = inst;
-    return inst;
+    try {
+      await initSDK();
+      const inst = await createInstance({
+        ...SepoliaConfig,
+        network: SEPOLIA_RPC_URL,
+      });
+      instance = inst;
+      return inst;
+    } catch (err) {
+      // Reset so the next caller can retry instead of being permanently
+      // wedged on a rejected promise (e.g. transient relayer SDK boot failure).
+      initPromise = null;
+      throw err;
+    }
   })();
 
   return initPromise;

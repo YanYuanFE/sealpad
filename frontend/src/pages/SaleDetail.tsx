@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useAccount,
@@ -48,6 +48,17 @@ export function SaleDetail() {
   const [settleStep, setSettleStep] = useState<string | null>(null);
   const [claimStep, setClaimStep] = useState<string | null>(null);
   const [withdrawStep, setWithdrawStep] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  // 30s tick keeps the start/end countdown fresh without re-running on every
+  // unrelated state change. The component remounts when saleId changes via
+  // route param, so the interval is naturally scoped to the page view.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Math.floor(Date.now() / 1000));
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const validId = Number.isInteger(saleId) && saleId >= 0;
 
@@ -137,41 +148,67 @@ export function SaleDetail() {
   });
 
   const participantCount = sale?.participantCount ?? 0;
-  const participantCalls = Array.from({ length: participantCount }, (_, i) => ({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "getParticipant" as const,
-    args: [BigInt(saleId), i] as const,
-  }));
+  const participantCalls = useMemo(
+    () =>
+      Array.from({ length: participantCount }, (_, i) => ({
+        address: SEALPAD_ADDRESS,
+        abi: SEALPAD_ABI,
+        functionName: "getParticipant" as const,
+        args: [BigInt(saleId), i] as const,
+      })),
+    [participantCount, saleId],
+  );
 
   const { data: participantResults } = useReadContracts({
     contracts: participantCalls,
     query: { enabled: participantCount > 0 },
   });
 
-  const participantAddrs = Array.from(
-    { length: participantCount },
-    (_, i) => participantResults?.[i]?.result as string | undefined,
-  ).filter(Boolean) as string[];
+  const participantAddrs = useMemo(
+    () =>
+      Array.from(
+        { length: participantCount },
+        (_, i) => participantResults?.[i]?.result as string | undefined,
+      ).filter((a): a is string => typeof a === "string"),
+    [participantCount, participantResults],
+  );
 
-  const bidPriceCalls = participantAddrs.map((addr) => ({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "userBidPrice" as const,
-    args: [BigInt(saleId), addr as `0x${string}`] as const,
-  }));
+  // Joined identity is a stable string the dependency array can compare on,
+  // preventing wagmi from re-keying queries when participantAddrs is a new
+  // array reference but the contents are the same.
+  const participantsKey = useMemo(
+    () => participantAddrs.join(","),
+    [participantAddrs],
+  );
+
+  const bidPriceCalls = useMemo(
+    () =>
+      participantAddrs.map((addr) => ({
+        address: SEALPAD_ADDRESS,
+        abi: SEALPAD_ABI,
+        functionName: "userBidPrice" as const,
+        args: [BigInt(saleId), addr as `0x${string}`] as const,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saleId, participantsKey],
+  );
 
   const { data: bidPriceResults } = useReadContracts({
     contracts: bidPriceCalls,
     query: { enabled: participantAddrs.length > 0 && sale?.saleType === 1 },
   });
 
-  const depositCalls = participantAddrs.map((addr) => ({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "deposits" as const,
-    args: [BigInt(saleId), addr as `0x${string}`] as const,
-  }));
+  const depositCalls = useMemo(
+    () =>
+      participantAddrs.map((addr) => ({
+        address: SEALPAD_ADDRESS,
+        abi: SEALPAD_ABI,
+        functionName: "deposits" as const,
+        args: [BigInt(saleId), addr as `0x${string}`] as const,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [saleId, participantsKey],
+  );
 
   const { data: depositResults } = useReadContracts({
     contracts: depositCalls,
@@ -248,7 +285,6 @@ export function SaleDetail() {
     }
   };
 
-  const now = Math.floor(Date.now() / 1000);
   const isStarted = now >= Number(sale.startTime);
   const isEnded = now >= Number(sale.endTime);
   const currentDeposit = userDeposit ?? 0n;
@@ -287,7 +323,7 @@ export function SaleDetail() {
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Deposit confirmed!");
       setDepositInput("");
-      refetchDeposit();
+      await refetchDeposit();
     } catch (err) {
       const msg = getErrorMessage(err, "Deposit failed");
       setError(msg);
@@ -384,7 +420,7 @@ export function SaleDetail() {
         await publicClient.waitForTransactionReceipt({ hash: h });
         toast.success("Contribution submitted!");
       }
-      refetch();
+      await refetch();
     } catch (err) {
       const msg = getErrorMessage(err, "Bid failed");
       setError(msg);
@@ -411,7 +447,7 @@ export function SaleDetail() {
       setFinalizeStep("Requesting FHE decryption...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Sale finalized — awaiting decryption");
-      refetch();
+      await refetch();
     } catch (err) {
       const msg = getErrorMessage(err, "Finalize failed");
       setError(msg);
@@ -432,35 +468,39 @@ export function SaleDetail() {
       // Build the handle list in the exact order the contract expects.
       // FixedPrice: [totalContributedHandle, contrib_user0, contrib_user1, ...]
       // Dutch:      [bidAmount_user0, bidAmount_user1, ...]
-      const handles: `0x${string}`[] = [];
+      // All handle reads are parallelizable — they're independent view calls.
+      let handles: `0x${string}`[];
 
       if (sale.saleType === 0) {
-        const totalH = (await publicClient.readContract({
-          address: SEALPAD_ADDRESS,
-          abi: SEALPAD_ABI,
-          functionName: "getTotalContributedHandle",
-          args: [BigInt(saleId)],
-        })) as `0x${string}`;
-        handles.push(totalH);
-        for (const addr of participantAddrs) {
-          const h = (await publicClient.readContract({
+        const reads = await Promise.all([
+          publicClient.readContract({
             address: SEALPAD_ADDRESS,
             abi: SEALPAD_ABI,
-            functionName: "getContributionHandle",
-            args: [BigInt(saleId), addr as `0x${string}`],
-          })) as `0x${string}`;
-          handles.push(h);
-        }
+            functionName: "getTotalContributedHandle",
+            args: [BigInt(saleId)],
+          }),
+          ...participantAddrs.map((addr) =>
+            publicClient.readContract({
+              address: SEALPAD_ADDRESS,
+              abi: SEALPAD_ABI,
+              functionName: "getContributionHandle",
+              args: [BigInt(saleId), addr as `0x${string}`],
+            }),
+          ),
+        ]);
+        handles = reads as `0x${string}`[];
       } else {
-        for (const addr of participantAddrs) {
-          const h = (await publicClient.readContract({
-            address: SEALPAD_ADDRESS,
-            abi: SEALPAD_ABI,
-            functionName: "getBidAmountHandle",
-            args: [BigInt(saleId), addr as `0x${string}`],
-          })) as `0x${string}`;
-          handles.push(h);
-        }
+        const reads = await Promise.all(
+          participantAddrs.map((addr) =>
+            publicClient.readContract({
+              address: SEALPAD_ADDRESS,
+              abi: SEALPAD_ABI,
+              functionName: "getBidAmountHandle",
+              args: [BigInt(saleId), addr as `0x${string}`],
+            }),
+          ),
+        );
+        handles = reads as `0x${string}`[];
       }
 
       setSettleStep("Requesting KMS public decryption...");
@@ -478,7 +518,7 @@ export function SaleDetail() {
       setSettleStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Sale settled!");
-      refetch();
+      await refetch();
     } catch (err) {
       const msg = getErrorMessage(err, "Settle failed");
       setError(msg);
@@ -505,7 +545,7 @@ export function SaleDetail() {
       setClaimStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Tokens claimed!");
-      refetch();
+      await refetch();
     } catch (err) {
       const msg = getErrorMessage(err, "Claim failed");
       setError(msg);
@@ -532,7 +572,7 @@ export function SaleDetail() {
       setWithdrawStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Deposit withdrawn!");
-      refetchDeposit();
+      await refetchDeposit();
     } catch (err) {
       const msg = getErrorMessage(err, "Withdrawal failed");
       setError(msg);
