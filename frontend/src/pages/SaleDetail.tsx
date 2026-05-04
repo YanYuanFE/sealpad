@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import {
   useAccount,
   useReadContract,
@@ -49,11 +49,24 @@ export function SaleDetail() {
   const [claimStep, setClaimStep] = useState<string | null>(null);
   const [withdrawStep, setWithdrawStep] = useState<string | null>(null);
 
+  const validId = Number.isInteger(saleId) && saleId >= 0;
+
+  const { data: nextSaleId } = useReadContract({
+    address: SEALPAD_ADDRESS,
+    abi: SEALPAD_ABI,
+    functionName: "nextSaleId",
+  });
+
+  const idOutOfRange =
+    validId && nextSaleId !== undefined && BigInt(saleId) >= nextSaleId;
+  const idResolvable = validId && !idOutOfRange;
+
   const { data: sale, refetch } = useReadContract({
     address: SEALPAD_ADDRESS,
     abi: SEALPAD_ABI,
     functionName: "getSale",
     args: [BigInt(saleId)],
+    query: { enabled: idResolvable },
   });
 
   const isETH = sale ? isETHPayToken(sale.payToken) : false;
@@ -168,6 +181,37 @@ export function SaleDetail() {
   const { writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
   const ensureSepolia = useEnsureSepolia();
+
+  if (!validId || idOutOfRange) {
+    const total = nextSaleId !== undefined ? Number(nextSaleId) : null;
+    return (
+      <Card>
+        <CardContent className="py-16 text-center space-y-3">
+          <p className="font-mono text-xs tracking-widest text-slate-500 uppercase">
+            NOT FOUND
+          </p>
+          <p className="text-slate-700">
+            Sale #{String(id)} doesn&apos;t exist.
+          </p>
+          {total !== null && total > 0 && (
+            <p className="text-sm text-slate-500">
+              Currently {total} sale{total === 1 ? "" : "s"} (#0
+              {total > 1 ? `–#${total - 1}` : ""}).
+            </p>
+          )}
+          {total === 0 && (
+            <p className="text-sm text-slate-500">No sales have been created yet.</p>
+          )}
+          <Link
+            to="/app"
+            className="inline-block mt-2 font-mono text-xs tracking-widest text-brand-600 hover:text-brand-700"
+          >
+            ← BACK TO SALES
+          </Link>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!sale) {
     return <p className="text-slate-500">Loading sale...</p>;
