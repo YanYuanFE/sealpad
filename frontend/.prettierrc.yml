@@ -1,0 +1,9 @@
+printWidth: 80
+trailingComma: "all"
+endOfLine: "lf"
+singleQuote: false
+
+overrides:
+  - files: "*.md"
+    options:
+      proseWrap: "always"

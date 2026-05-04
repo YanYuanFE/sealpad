@@ -27,7 +27,11 @@ const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-function scrambleString(text: string, chars: string, revealedCount = 0): string {
+function scrambleString(
+  text: string,
+  chars: string,
+  revealedCount = 0,
+): string {
   let out = "";
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
@@ -138,7 +142,9 @@ export function ScrambleText({
     <span
       ref={ref}
       className={className}
-      onMouseEnter={mode === "settle" && trigger === "hover" ? runSettle : undefined}
+      onMouseEnter={
+        mode === "settle" && trigger === "hover" ? runSettle : undefined
+      }
       style={{ whiteSpace: "pre-wrap" }}
     >
       {display}

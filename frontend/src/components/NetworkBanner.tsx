@@ -28,17 +28,19 @@ export function NetworkBanner() {
   return (
     <div className="mb-6 border border-rose-300 bg-rose-50 px-5 py-4 flex flex-wrap items-center justify-between gap-4">
       <div className="flex items-start gap-3 flex-1 min-w-0">
-        <Warning size={22} weight="fill" className="text-rose-600 shrink-0 mt-0.5" />
+        <Warning
+          size={22}
+          weight="fill"
+          className="text-rose-600 shrink-0 mt-0.5"
+        />
         <div>
           <p className="font-semibold text-rose-900 text-sm">Wrong network</p>
           <p className="text-xs text-rose-700 font-mono mt-1">
-            SealPad lives on {REQUIRED_CHAIN_LABEL} (chain {REQUIRED_CHAIN_ID}) only.
-            Your wallet is on chain {chainId ?? "?"}. Sending a transaction now would
-            broadcast to the wrong network.
+            SealPad lives on {REQUIRED_CHAIN_LABEL} (chain {REQUIRED_CHAIN_ID})
+            only. Your wallet is on chain {chainId ?? "?"}. Sending a
+            transaction now would broadcast to the wrong network.
           </p>
-          {err && (
-            <p className="text-xs text-rose-700 mt-1 font-mono">{err}</p>
-          )}
+          {err && <p className="text-xs text-rose-700 mt-1 font-mono">{err}</p>}
         </div>
       </div>
       <button

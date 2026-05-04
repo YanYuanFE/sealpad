@@ -30,9 +30,7 @@ export function HeroSection() {
         }}
       />
       {/* Falling cipher chars — Matrix-style hash stream behind content */}
-      <HashStream
-        className="absolute inset-0 opacity-30 pointer-events-none mix-blend-darken"
-      />
+      <HashStream className="absolute inset-0 opacity-30 pointer-events-none mix-blend-darken" />
       {/* Subtle radial spotlight — Saturn orange */}
       <div
         className="absolute inset-0 opacity-70 pointer-events-none"
@@ -45,7 +43,10 @@ export function HeroSection() {
       <div className="relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
         <div>
           <span className="inline-block border border-brand-500 text-brand-600 font-mono text-xs px-3 py-1.5 rounded mb-10 animate-[pulse-soft_2.4s_ease-in-out_infinite]">
-            <ScrambleText text="[ STATUS: LIVE ON SEPOLIA TESTNET ]" duration={900} />
+            <ScrambleText
+              text="[ STATUS: LIVE ON SEPOLIA TESTNET ]"
+              duration={900}
+            />
           </span>
           <h1 className="font-display text-7xl lg:text-8xl leading-[0.95] tracking-tight text-slate-900">
             <ScrambleText text="PRIVATE" duration={700} delay={120} />
@@ -54,9 +55,9 @@ export function HeroSection() {
           </h1>
           <p className="mt-10 text-lg text-slate-600 max-w-xl">
             The first confidential token launchpad powered by{" "}
-            <span className="text-brand-600 font-semibold">Zama FHE</span>. Encrypt
-            your bids, protect your alpha, and launch with mathematically proven
-            privacy on Ethereum.
+            <span className="text-brand-600 font-semibold">Zama FHE</span>.
+            Encrypt your bids, protect your alpha, and launch with
+            mathematically proven privacy on Ethereum.
           </p>
           <div className="mt-10 flex items-center gap-6 flex-wrap">
             <MagneticArea>
@@ -102,7 +103,8 @@ export function HeroSection() {
 
       <div className="absolute bottom-6 inset-x-0 hidden md:flex justify-between px-8 font-mono text-[11px] text-slate-500">
         <span>
-          [ <ScrambleText text="0x18C2..F42" mode="live" speed={180} /> ] — VERIFIED CONTRACT
+          [ <ScrambleText text="0x18C2..F42" mode="live" speed={180} /> ] —
+          VERIFIED CONTRACT
         </span>
         <span>SCROLL TO DECRYPT PROTOCOL ↓</span>
         <span>[ CHAIN : 11155111 ]</span>
@@ -130,7 +132,9 @@ function Stat({
   return (
     <div className="flex justify-between py-3 border-b border-slate-100 last:border-0">
       <span className="text-slate-600 text-sm">{label}</span>
-      <span className={`font-semibold text-slate-900 ${mono ? "font-mono" : ""}`}>
+      <span
+        className={`font-semibold text-slate-900 ${mono ? "font-mono" : ""}`}
+      >
         {children}
       </span>
     </div>

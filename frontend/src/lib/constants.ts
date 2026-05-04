@@ -1,5 +1,11 @@
 export const SaleTypeLabel = ["Fixed Price", "Dutch Auction"];
-export const SaleStatusLabel = ["Active", "Finalizing", "Settled", "Failed", "Cancelled"];
+export const SaleStatusLabel = [
+  "Active",
+  "Finalizing",
+  "Settled",
+  "Failed",
+  "Cancelled",
+];
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -37,9 +43,10 @@ export function getErrorMessage(err: unknown, prefix?: string): string {
       const errorName = revert.data?.errorName;
       if (errorName) {
         const args = revert.data?.args;
-        msg = Array.isArray(args) && args.length > 0
-          ? `${errorName}(${args.map((a) => String(a)).join(", ")})`
-          : errorName;
+        msg =
+          Array.isArray(args) && args.length > 0
+            ? `${errorName}(${args.map((a) => String(a)).join(", ")})`
+            : errorName;
       } else {
         msg = revert.shortMessage;
       }

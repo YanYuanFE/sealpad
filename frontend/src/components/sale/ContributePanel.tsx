@@ -2,12 +2,7 @@ import { useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 import { Lock } from "@phosphor-icons/react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SALE_VAULT_ABI } from "@/config/contracts";
@@ -116,12 +111,7 @@ export function ContributePanel({
           address: vaultAddress,
           abi: SALE_VAULT_ABI,
           functionName: "bid",
-          args: [
-            resolvedBidPrice,
-            encrypted.handle,
-            encrypted.inputProof,
-            [],
-          ],
+          args: [resolvedBidPrice, encrypted.handle, encrypted.inputProof, []],
           chainId: REQUIRED_CHAIN_ID,
         });
         setStep("Confirming...");
@@ -182,8 +172,8 @@ export function ContributePanel({
             )}
             {bidPriceBelowFloor && (
               <p className="text-xs text-rose-600">
-                Bid price must be at least {floorPriceFormatted} {fmt.tokenLabel}{" "}
-                (floor price).
+                Bid price must be at least {floorPriceFormatted}{" "}
+                {fmt.tokenLabel} (floor price).
               </p>
             )}
             <p className="text-xs text-slate-500">

@@ -1,4 +1,8 @@
-import { initSDK, createInstance, SepoliaConfig } from "@zama-fhe/relayer-sdk/web";
+import {
+  initSDK,
+  createInstance,
+  SepoliaConfig,
+} from "@zama-fhe/relayer-sdk/web";
 import type { FhevmInstance } from "@zama-fhe/relayer-sdk/web";
 import { SEPOLIA_RPC_URL } from "@/config/wagmi";
 

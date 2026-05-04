@@ -1,12 +1,7 @@
 import { useMemo } from "react";
 import { useAccount, useReadContracts } from "wagmi";
 import { Lock } from "@phosphor-icons/react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyAddress } from "@/components/CopyAddress";
 import { ScrambleText } from "@/components/landing/shared/ScrambleText";
@@ -124,9 +119,7 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
               <div
                 key={i}
                 className={`flex flex-col gap-2 rounded-md border p-3 text-sm ${
-                  isMe
-                    ? "border-brand-300 bg-brand-50/40"
-                    : "border-slate-200"
+                  isMe ? "border-brand-300 bg-brand-50/40" : "border-slate-200"
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -186,11 +179,7 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
                       className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
                     >
                       <Lock size={10} weight="fill" />
-                      <ScrambleText
-                        text="ENCRYPTED"
-                        mode="live"
-                        speed={200}
-                      />
+                      <ScrambleText text="ENCRYPTED" mode="live" speed={200} />
                     </Badge>
                   </div>
                 )}
@@ -202,4 +191,3 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
     </Card>
   );
 }
-

@@ -18,14 +18,14 @@ type Props = {
  */
 export function LogoMark({ size = 36, dark = false, className }: Props) {
   // Proportions — 64u outer / 36u middle / 12u inner.
-  const mid   = Math.round(size * 0.5625);   // 36/64
-  const inner = Math.round(size * 0.1875);   // 12/64
+  const mid = Math.round(size * 0.5625); // 36/64
+  const inner = Math.round(size * 0.1875); // 12/64
 
   const outerBg = dark ? "#FFFFFF" : "#181818";
-  const midBg   = dark ? "#181818" : "#FFFFFF";
+  const midBg = dark ? "#181818" : "#FFFFFF";
 
   // Centered offsets for absolutely-positioned children
-  const midOffset   = (size - mid)   / 2;
+  const midOffset = (size - mid) / 2;
   const innerOffset = (size - inner) / 2;
 
   return (

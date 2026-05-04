@@ -35,7 +35,9 @@ export function FAQ() {
     <section className="py-32 px-6 md:px-8 bg-white">
       <div className="max-w-3xl mx-auto">
         <Reveal>
-          <h2 className="font-display text-5xl text-center text-slate-900 mb-4">Queries</h2>
+          <h2 className="font-display text-5xl text-center text-slate-900 mb-4">
+            Queries
+          </h2>
           <p className="text-center font-mono text-xs tracking-widest text-brand-600 mb-16">
             FREQUENTLY ASKED
           </p>
@@ -93,14 +95,21 @@ function FAQItem({
             isOpen ? "rotate-180" : "rotate-0"
           }`}
         >
-          {isOpen ? <Minus size={20} weight="bold" /> : <Plus size={20} weight="bold" />}
+          {isOpen ? (
+            <Minus size={20} weight="bold" />
+          ) : (
+            <Plus size={20} weight="bold" />
+          )}
         </span>
       </button>
       <div
         style={{ maxHeight: `${maxHeight}px` }}
         className="overflow-hidden transition-[max-height] duration-400 ease-out"
       >
-        <div ref={contentRef} className="px-6 pb-6 text-slate-600 leading-relaxed">
+        <div
+          ref={contentRef}
+          className="px-6 pb-6 text-slate-600 leading-relaxed"
+        >
           {a}
         </div>
       </div>

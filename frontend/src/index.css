@@ -13,88 +13,90 @@
 @theme inline {
   /* ---- Typography (free fallbacks for Suisse Intl + Aeonik Fono Pro) ---- */
   --font-sans: "Inter", "Geist Variable", "Suisse Intl", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Aeonik Fono Pro", ui-monospace, "SFMono-Regular", monospace;
+  --font-mono:
+    "JetBrains Mono", "Aeonik Fono Pro", ui-monospace, "SFMono-Regular",
+    monospace;
   --font-heading: "Inter", system-ui, sans-serif;
 
   /* ---- Brand orange ramp (anchored at Saturn #FF5100) ---- */
-  --color-brand-50:  #FFF7ED;
-  --color-brand-100: #FFEDD5;
-  --color-brand-200: #FFD7A8;
-  --color-brand-300: #FFB74D;
-  --color-brand-400: #FFA726;
-  --color-brand-500: #FF5100;   /* ⭐ Saturn primary */
-  --color-brand-600: #E84800;
-  --color-brand-700: #C73D00;
-  --color-brand-800: #A02E00;
-  --color-brand-900: #7A2300;
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #ffd7a8;
+  --color-brand-300: #ffb74d;
+  --color-brand-400: #ffa726;
+  --color-brand-500: #ff5100; /* ⭐ Saturn primary */
+  --color-brand-600: #e84800;
+  --color-brand-700: #c73d00;
+  --color-brand-800: #a02e00;
+  --color-brand-900: #7a2300;
 
   /* ---- Saturn neutrals (override Tailwind slate-* to match) ---- */
-  --color-slate-50:  #FCFCFC;   /* cloud */
-  --color-slate-100: #F5F5F5;
-  --color-slate-200: #E5E7EB;
-  --color-slate-300: #D1D1D1;
-  --color-slate-400: #9CA3AF;
-  --color-slate-500: #686868;   /* Saturn text-secondary */
-  --color-slate-600: #4F4F4F;
-  --color-slate-700: #2A2A2A;
-  --color-slate-800: #1F1F1F;
-  --color-slate-900: #181818;   /* Saturn obsidian */
+  --color-slate-50: #fcfcfc; /* cloud */
+  --color-slate-100: #f5f5f5;
+  --color-slate-200: #e5e7eb;
+  --color-slate-300: #d1d1d1;
+  --color-slate-400: #9ca3af;
+  --color-slate-500: #686868; /* Saturn text-secondary */
+  --color-slate-600: #4f4f4f;
+  --color-slate-700: #2a2a2a;
+  --color-slate-800: #1f1f1f;
+  --color-slate-900: #181818; /* Saturn obsidian */
 
   /* ---- Semantic SealPad tokens (kept for backward compat) ---- */
-  --color-canvas:       #FFFFFF;   /* page bg — pure white */
-  --color-cloud:        #FCFCFC;   /* alternate section bg */
-  --color-surface:      #FFFFFF;
-  --color-surface-soft: #F7F9FB;
-  --color-ink-dark:     #181818;
-  --color-ink-medium:   #686868;
-  --color-ink-soft:     #9CA3AF;
-  --color-obsidian:     #181818;
-  --color-navy:         #092134;
-  --color-accent-blue:  #BDCDDB;
+  --color-canvas: #ffffff; /* page bg — pure white */
+  --color-cloud: #fcfcfc; /* alternate section bg */
+  --color-surface: #ffffff;
+  --color-surface-soft: #f7f9fb;
+  --color-ink-dark: #181818;
+  --color-ink-medium: #686868;
+  --color-ink-soft: #9ca3af;
+  --color-obsidian: #181818;
+  --color-navy: #092134;
+  --color-accent-blue: #bdcddb;
 
   /* ---- shadcn semantic tokens ---- */
-  --color-background: #FFFFFF;
+  --color-background: #ffffff;
   --color-foreground: #181818;
-  --color-card: #FFFFFF;
+  --color-card: #ffffff;
   --color-card-foreground: #181818;
-  --color-popover: #FFFFFF;
+  --color-popover: #ffffff;
   --color-popover-foreground: #181818;
-  --color-primary: #FF5100;
-  --color-primary-foreground: #FFFFFF;
-  --color-secondary: #F5F5F5;
+  --color-primary: #ff5100;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f5f5f5;
   --color-secondary-foreground: #181818;
-  --color-muted: #F7F9FB;
+  --color-muted: #f7f9fb;
   --color-muted-foreground: #686868;
-  --color-accent: #F5F5F5;
+  --color-accent: #f5f5f5;
   --color-accent-foreground: #181818;
-  --color-destructive: #DC2626;
-  --color-border: #E5E7EB;
-  --color-input: #E5E7EB;
-  --color-ring: #FF5100;
+  --color-destructive: #dc2626;
+  --color-border: #e5e7eb;
+  --color-input: #e5e7eb;
+  --color-ring: #ff5100;
 
-  --color-chart-1: #FF5100;
+  --color-chart-1: #ff5100;
   --color-chart-2: #181818;
   --color-chart-3: #686868;
-  --color-chart-4: #BDCDDB;
-  --color-chart-5: #FCFCFC;
+  --color-chart-4: #bdcddb;
+  --color-chart-5: #fcfcfc;
 
-  --color-sidebar: #FFFFFF;
+  --color-sidebar: #ffffff;
   --color-sidebar-foreground: #181818;
-  --color-sidebar-primary: #FF5100;
-  --color-sidebar-primary-foreground: #FFFFFF;
-  --color-sidebar-accent: #F5F5F5;
+  --color-sidebar-primary: #ff5100;
+  --color-sidebar-primary-foreground: #ffffff;
+  --color-sidebar-accent: #f5f5f5;
   --color-sidebar-accent-foreground: #181818;
-  --color-sidebar-border: #E5E7EB;
-  --color-sidebar-ring: #FF5100;
+  --color-sidebar-border: #e5e7eb;
+  --color-sidebar-ring: #ff5100;
 
   /* ---- Saturn-signature micro-radii — almost-zero everywhere ---- */
-  --radius-sm:  0.69px;
-  --radius-md:  0.69px;
-  --radius-lg:  0.69px;
-  --radius-xl:  0.69px;
+  --radius-sm: 0.69px;
+  --radius-md: 0.69px;
+  --radius-lg: 0.69px;
+  --radius-xl: 0.69px;
   --radius-2xl: 0.69px;
   --radius-3xl: 0.69px;
-  --radius:     0.69px;
+  --radius: 0.69px;
 }
 
 @layer base {
@@ -111,7 +113,9 @@
   body {
     @apply bg-canvas text-ink-dark font-sans antialiased;
     /* Saturn-style tighter Inter — ss01 (single-storey g, etc.) */
-    font-feature-settings: "ss01" 1, "cv11" 1;
+    font-feature-settings:
+      "ss01" 1,
+      "cv11" 1;
   }
 }
 

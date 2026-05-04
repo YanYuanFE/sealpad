@@ -13,7 +13,10 @@ import {
 import type { ComponentType } from "react";
 import { Reveal } from "./shared/Reveal";
 
-type IconType = ComponentType<{ size?: number; weight?: "bold" | "fill" | "regular" }>;
+type IconType = ComponentType<{
+  size?: number;
+  weight?: "bold" | "fill" | "regular";
+}>;
 
 type Item = { Icon: IconType; t: string };
 

@@ -41,7 +41,9 @@ export function MyActivity() {
 
   const myCreated = useMemo(
     () =>
-      createdAddrsRaw ? (createdAddrsRaw as readonly string[]).map((a) => a) : [],
+      createdAddrsRaw
+        ? (createdAddrsRaw as readonly string[]).map((a) => a)
+        : [],
     [createdAddrsRaw],
   );
   const myParticipated = useMemo(
@@ -75,7 +77,9 @@ export function MyActivity() {
   const summaryByAddr = useMemo(() => {
     const map = new Map<string, SaleSummary>();
     allAddrs.forEach((addr, i) => {
-      const r = summaryResults?.[i]?.result as unknown as SaleSummary | undefined;
+      const r = summaryResults?.[i]?.result as unknown as
+        | SaleSummary
+        | undefined;
       if (r) map.set(addr, r);
     });
     return map;

@@ -21,11 +21,17 @@ export function Navbar() {
         {links.map((l) => (
           <li key={l.label}>
             {"to" in l ? (
-              <Link to={l.to} className="hover:text-brand-600 transition-colors">
+              <Link
+                to={l.to}
+                className="hover:text-brand-600 transition-colors"
+              >
                 {l.label}
               </Link>
             ) : (
-              <a href={l.href} className="hover:text-brand-600 transition-colors">
+              <a
+                href={l.href}
+                className="hover:text-brand-600 transition-colors"
+              >
                 {l.label}
               </a>
             )}

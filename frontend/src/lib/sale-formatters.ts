@@ -30,7 +30,9 @@ export type SaleFormatters = {
 
 /// Returns a complete formatter bundle for a sale, or `null` if the sale
 /// hasn't loaded yet. The hook reads payToken / saleToken metadata once.
-export function useSaleFormatters(sale: SaleData | undefined): SaleFormatters | null {
+export function useSaleFormatters(
+  sale: SaleData | undefined,
+): SaleFormatters | null {
   const isETH = sale ? isETHPayToken(sale.payToken) : false;
 
   const { data: payTokenSymbol } = useReadContract({

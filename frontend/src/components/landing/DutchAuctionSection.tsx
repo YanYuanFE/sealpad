@@ -16,9 +16,9 @@ export function DutchAuctionSection() {
               Simulator
             </h2>
             <p className="mt-6 text-slate-600 max-w-xl">
-              Experience how SealPad protects your strategy during a sealed Dutch
-              auction. Bidders pick their own price, encrypt their amount, and
-              settle at a uniform clearing price.
+              Experience how SealPad protects your strategy during a sealed
+              Dutch auction. Bidders pick their own price, encrypt their amount,
+              and settle at a uniform clearing price.
             </p>
             <div className="mt-10 space-y-6">
               <FeatureRow
@@ -38,10 +38,14 @@ export function DutchAuctionSection() {
         <Reveal direction="right" delay={150}>
           <div className="bg-slate-900 rounded-xl p-6 text-white relative overflow-hidden">
             {/* faint scan line accent */}
-            <div className="pointer-events-none absolute inset-0 opacity-30" style={{
-              background: "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(255,81,0,0.06) 50%, rgba(255,81,0,0.06) 51%, transparent 51%)",
-              backgroundSize: "100% 4px",
-            }} />
+            <div
+              className="pointer-events-none absolute inset-0 opacity-30"
+              style={{
+                background:
+                  "linear-gradient(180deg, transparent 0%, transparent 50%, rgba(255,81,0,0.06) 50%, rgba(255,81,0,0.06) 51%, transparent 51%)",
+                backgroundSize: "100% 4px",
+              }}
+            />
 
             <div className="flex justify-between font-mono text-[11px] text-brand-300 mb-4 relative">
               <span className="inline-flex items-center gap-2">
@@ -101,7 +105,10 @@ function FeatureRow({
   title,
   desc,
 }: {
-  Icon: React.ComponentType<{ size?: number; weight?: "bold" | "fill" | "regular" }>;
+  Icon: React.ComponentType<{
+    size?: number;
+    weight?: "bold" | "fill" | "regular";
+  }>;
   title: string;
   desc: string;
 }) {
@@ -118,12 +125,26 @@ function FeatureRow({
   );
 }
 
-function Box({ label, value, liveScramble }: { label: string; value: string; liveScramble?: boolean }) {
+function Box({
+  label,
+  value,
+  liveScramble,
+}: {
+  label: string;
+  value: string;
+  liveScramble?: boolean;
+}) {
   return (
     <div className="bg-slate-800 p-4 rounded">
-      <div className="font-mono text-[10px] tracking-widest text-slate-400">{label}</div>
+      <div className="font-mono text-[10px] tracking-widest text-slate-400">
+        {label}
+      </div>
       <div className="text-2xl font-mono text-brand-300 mt-1">
-        {liveScramble ? <ScrambleText text={value} mode="live" speed={140} /> : value}
+        {liveScramble ? (
+          <ScrambleText text={value} mode="live" speed={140} />
+        ) : (
+          value
+        )}
       </div>
     </div>
   );

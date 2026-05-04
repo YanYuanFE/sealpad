@@ -29,13 +29,22 @@ export function FinalCTA() {
 
           <div className="relative">
             <h2 className="font-display text-5xl md:text-6xl leading-tight">
-              <ScrambleText text="Secure your" duration={800} trigger="viewport" />
+              <ScrambleText
+                text="Secure your"
+                duration={800}
+                trigger="viewport"
+              />
               <br />
-              <ScrambleText text="launch today." duration={1000} trigger="viewport" delay={300} />
+              <ScrambleText
+                text="launch today."
+                duration={1000}
+                trigger="viewport"
+                delay={300}
+              />
             </h2>
             <p className="mt-6 max-w-xl mx-auto text-white/90">
-              Join the privacy revolution. Launch your token on the only platform
-              that mathematically guarantees confidentiality.
+              Join the privacy revolution. Launch your token on the only
+              platform that mathematically guarantees confidentiality.
             </p>
             <div className="mt-10 flex justify-center gap-4 flex-wrap">
               <MagneticArea>

@@ -30,10 +30,12 @@ export function HowItWorksSection() {
     <section id="flow" className="py-32 px-6 md:px-8 bg-slate-50">
       <div className="max-w-7xl mx-auto">
         <Reveal>
-          <h2 className="font-display text-5xl text-slate-900 mb-4">Confidential Flow</h2>
+          <h2 className="font-display text-5xl text-slate-900 mb-4">
+            Confidential Flow
+          </h2>
           <p className="text-slate-600 max-w-3xl mb-6">
-            Powered by Zama's Fully Homomorphic Encryption, computations happen on
-            encrypted data without ever needing to decrypt it.
+            Powered by Zama's Fully Homomorphic Encryption, computations happen
+            on encrypted data without ever needing to decrypt it.
           </p>
           <div className="font-mono text-xs text-brand-600 mb-12 inline-flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
@@ -43,7 +45,11 @@ export function HowItWorksSection() {
 
         <div className="grid md:grid-cols-2 gap-6">
           {flowSteps.map((s, i) => (
-            <Reveal key={s.n} delay={i * 100} direction={i % 2 === 0 ? "left" : "right"}>
+            <Reveal
+              key={s.n}
+              delay={i * 100}
+              direction={i % 2 === 0 ? "left" : "right"}
+            >
               <div
                 className={`p-8 rounded-xl border h-full ${
                   s.featured
@@ -73,7 +79,11 @@ export function HowItWorksSection() {
                   }`}
                 >
                   {s.featured ? (
-                    <ScrambleText text={s.title} duration={1100} trigger="viewport" />
+                    <ScrambleText
+                      text={s.title}
+                      duration={1100}
+                      trigger="viewport"
+                    />
                   ) : (
                     s.title
                   )}

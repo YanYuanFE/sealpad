@@ -3,12 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useAccount, useReadContract } from "wagmi";
 import { isAddress, getAddress } from "viem";
 import { Lock } from "@phosphor-icons/react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CopyAddress } from "@/components/CopyAddress";
@@ -33,9 +28,11 @@ export function SaleDetail() {
   const { address: vaultParam } = useParams<{ address: string }>();
   // Normalize to checksummed form so wagmi's query key is stable across casings.
   const validVaultAddress = !!vaultParam && isAddress(vaultParam);
-  const vaultAddress = (validVaultAddress
-    ? getAddress(vaultParam!)
-    : "0x0000000000000000000000000000000000000000") as `0x${string}`;
+  const vaultAddress = (
+    validVaultAddress
+      ? getAddress(vaultParam!)
+      : "0x0000000000000000000000000000000000000000"
+  ) as `0x${string}`;
   const { address, isConnected } = useAccount();
 
   const [error, setError] = useState<string | null>(null);

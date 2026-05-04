@@ -40,7 +40,9 @@ export function FeaturesSection() {
       <div className="max-w-7xl mx-auto">
         <Reveal>
           <div className="text-center mb-20">
-            <h2 className="font-display text-5xl text-slate-900">The Privacy Problem</h2>
+            <h2 className="font-display text-5xl text-slate-900">
+              The Privacy Problem
+            </h2>
             <p className="mt-4 font-mono text-xs tracking-widest text-brand-600">
               STANDARD IDOS EXPOSE YOUR STRATEGY
             </p>
@@ -88,7 +90,9 @@ function ProblemCard({
   return (
     <div
       className={`relative p-6 rounded-lg border transition-shadow hover:shadow-md ${
-        isBad ? "bg-rose-50/40 border-rose-100" : "bg-brand-50/40 border-brand-100"
+        isBad
+          ? "bg-rose-50/40 border-rose-100"
+          : "bg-brand-50/40 border-brand-100"
       }`}
     >
       <span

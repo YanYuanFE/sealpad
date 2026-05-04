@@ -1,6 +1,7 @@
 // Factory address — single canonical source. The factory deploys a SaleVault
 // implementation in its constructor and clones it (EIP-1167) per sale.
-export const SEALPAD_FACTORY_ADDRESS = (import.meta.env.VITE_SEALPAD_FACTORY_ADDRESS ||
+export const SEALPAD_FACTORY_ADDRESS = (import.meta.env
+  .VITE_SEALPAD_FACTORY_ADDRESS ||
   "0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47") as `0x${string}`;
 
 // ============================================================

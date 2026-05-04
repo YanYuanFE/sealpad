@@ -14,16 +14,32 @@ const cols = [
   {
     title: "RESOURCES",
     links: [
-      { label: "Documentation", href: "https://github.com/YanYuanFE/sealpad", external: true },
-      { label: "GitHub", href: "https://github.com/YanYuanFE/sealpad", external: true },
+      {
+        label: "Documentation",
+        href: "https://github.com/YanYuanFE/sealpad",
+        external: true,
+      },
+      {
+        label: "GitHub",
+        href: "https://github.com/YanYuanFE/sealpad",
+        external: true,
+      },
       { label: "Zama Docs", href: "https://docs.zama.org", external: true },
     ],
   },
   {
     title: "PROGRAM",
     links: [
-      { label: "Zama Developer Hub", href: "https://www.zama.org/developer-hub", external: true },
-      { label: "Mainnet Season 2", href: "https://www.zama.org/developer-hub", external: true },
+      {
+        label: "Zama Developer Hub",
+        href: "https://www.zama.org/developer-hub",
+        external: true,
+      },
+      {
+        label: "Mainnet Season 2",
+        href: "https://www.zama.org/developer-hub",
+        external: true,
+      },
     ],
   },
 ];
@@ -35,7 +51,9 @@ export function Footer() {
         <div>
           <div className="flex items-center gap-2.5 mb-4">
             <LogoMark size={32} />
-            <span className="font-bold tracking-wider text-slate-900">SEALPAD</span>
+            <span className="font-bold tracking-wider text-slate-900">
+              SEALPAD
+            </span>
           </div>
           <p className="font-mono text-xs text-slate-500 leading-relaxed">
             Privacy-first liquidity platform.
@@ -77,7 +95,9 @@ function FooterCol({
 }) {
   return (
     <div>
-      <h5 className="font-mono text-xs tracking-widest text-slate-500 mb-4">{title}</h5>
+      <h5 className="font-mono text-xs tracking-widest text-slate-500 mb-4">
+        {title}
+      </h5>
       <ul className="space-y-3 text-slate-700 text-sm">
         {links.map((l) => (
           <li key={l.label}>

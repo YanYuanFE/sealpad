@@ -1,7 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount, useWriteContract, usePublicClient } from "wagmi";
-import { erc20Abi, parseUnits, parseEther, isAddress, parseEventLogs } from "viem";
+import {
+  erc20Abi,
+  parseUnits,
+  parseEther,
+  isAddress,
+  parseEventLogs,
+} from "viem";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -138,10 +144,18 @@ function UnitSelect({
   );
 }
 
-function FieldHint({ children, error }: { children?: React.ReactNode; error?: boolean }) {
+function FieldHint({
+  children,
+  error,
+}: {
+  children?: React.ReactNode;
+  error?: boolean;
+}) {
   if (!children) return null;
   return (
-    <p className={`text-xs font-mono ${error ? "text-rose-600" : "text-slate-500"}`}>
+    <p
+      className={`text-xs font-mono ${error ? "text-rose-600" : "text-slate-500"}`}
+    >
       {children}
     </p>
   );
@@ -238,9 +252,7 @@ export function CreateSale() {
     () => (vestingEnabled ? unitToSeconds(vestingValue, vestingUnit) : 0),
     [vestingEnabled, vestingValue, vestingUnit],
   );
-  const vestingValid =
-    !vestingEnabled ||
-    cliffSec + vestingSec > 0; // at least one of them must be > 0 when enabled
+  const vestingValid = !vestingEnabled || cliffSec + vestingSec > 0; // at least one of them must be > 0 when enabled
 
   // ---------- Cap validation ----------
   const softCapValid = isPositiveDecimal(softCap);
@@ -290,8 +302,14 @@ export function CreateSale() {
       await publicClient.waitForTransactionReceipt({ hash: approveHash });
       toast.success("Token approved");
 
-      setStep(isETH ? "Preparing sale parameters..." : "Reading payment token decimals...");
-      const payToken = (isETH ? ZERO_ADDRESS : payTokenAddress) as `0x${string}`;
+      setStep(
+        isETH
+          ? "Preparing sale parameters..."
+          : "Reading payment token decimals...",
+      );
+      const payToken = (
+        isETH ? ZERO_ADDRESS : payTokenAddress
+      ) as `0x${string}`;
       const payTokenDecimals = isETH
         ? 18
         : Number(
@@ -351,7 +369,8 @@ export function CreateSale() {
         eventName: "SaleCreated",
         logs: receipt.logs,
       });
-      const vaultAddress = (events[0]?.args as { vault?: string } | undefined)?.vault ?? null;
+      const vaultAddress =
+        (events[0]?.args as { vault?: string } | undefined)?.vault ?? null;
 
       toast.success("Sale created!");
       navigate(vaultAddress ? `/app/sale/${vaultAddress}` : "/app");
@@ -384,7 +403,9 @@ export function CreateSale() {
         <p className="font-mono text-xs tracking-widest text-brand-600 mb-2">
           NEW LAUNCH
         </p>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Create Token Sale</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Create Token Sale
+        </h1>
         <p className="text-slate-600 mt-1 text-sm">
           Configure parameters, then approve and launch.
         </p>
@@ -399,10 +420,16 @@ export function CreateSale() {
           <div className="space-y-2">
             <Label>Sale Type</Label>
             <div className="grid grid-cols-2 gap-2">
-              <ToggleButton active={saleType === 0} onClick={() => setSaleType(0)}>
+              <ToggleButton
+                active={saleType === 0}
+                onClick={() => setSaleType(0)}
+              >
                 Fixed Price
               </ToggleButton>
-              <ToggleButton active={saleType === 1} onClick={() => setSaleType(1)}>
+              <ToggleButton
+                active={saleType === 1}
+                onClick={() => setSaleType(1)}
+              >
                 Dutch Auction
               </ToggleButton>
             </div>
@@ -414,7 +441,9 @@ export function CreateSale() {
               placeholder="0x..."
               value={saleToken}
               onChange={(e) => setSaleToken(e.target.value)}
-              className={saleToken && !isValidSaleToken ? "border-rose-400" : ""}
+              className={
+                saleToken && !isValidSaleToken ? "border-rose-400" : ""
+              }
             />
             {saleToken && !isValidSaleToken && (
               <FieldHint error>Not a valid Ethereum address.</FieldHint>
@@ -429,7 +458,9 @@ export function CreateSale() {
               value={saleAmount}
               onChange={(e) => setSaleAmount(e.target.value)}
             />
-            <FieldHint>Whole tokens. Decimals are read from the token at create time.</FieldHint>
+            <FieldHint>
+              Whole tokens. Decimals are read from the token at create time.
+            </FieldHint>
           </div>
         </CardContent>
       </Card>
@@ -443,10 +474,16 @@ export function CreateSale() {
           <div className="space-y-2">
             <Label>Payment Currency</Label>
             <div className="grid grid-cols-2 gap-2">
-              <ToggleButton active={isETH} onClick={() => setPayTokenChoice("ETH")}>
+              <ToggleButton
+                active={isETH}
+                onClick={() => setPayTokenChoice("ETH")}
+              >
                 ETH
               </ToggleButton>
-              <ToggleButton active={!isETH} onClick={() => setPayTokenChoice("ERC20")}>
+              <ToggleButton
+                active={!isETH}
+                onClick={() => setPayTokenChoice("ERC20")}
+              >
                 ERC-20
               </ToggleButton>
             </div>
@@ -456,7 +493,9 @@ export function CreateSale() {
                 value={payTokenAddress}
                 onChange={(e) => setPayTokenAddress(e.target.value)}
                 className={
-                  payTokenAddress && !isAddress(payTokenAddress) ? "border-rose-400" : ""
+                  payTokenAddress && !isAddress(payTokenAddress)
+                    ? "border-rose-400"
+                    : ""
                 }
               />
             )}
@@ -476,7 +515,8 @@ export function CreateSale() {
             />
             {saleType === 1 && (
               <FieldHint>
-                Investors can bid any price above this floor. Clearing price is determined by demand.
+                Investors can bid any price above this floor. Clearing price is
+                determined by demand.
               </FieldHint>
             )}
           </div>
@@ -490,7 +530,9 @@ export function CreateSale() {
                 value={softCap}
                 onChange={(e) => setSoftCap(e.target.value)}
                 className={
-                  softCap.trim() !== "" && !softCapValid ? "border-rose-400" : ""
+                  softCap.trim() !== "" && !softCapValid
+                    ? "border-rose-400"
+                    : ""
                 }
               />
             </div>
@@ -502,7 +544,9 @@ export function CreateSale() {
                 value={hardCap}
                 onChange={(e) => setHardCap(e.target.value)}
                 className={
-                  hardCap.trim() !== "" && !hardCapValid ? "border-rose-400" : ""
+                  hardCap.trim() !== "" && !hardCapValid
+                    ? "border-rose-400"
+                    : ""
                 }
               />
             </div>
@@ -627,7 +671,8 @@ export function CreateSale() {
                   />
                 </div>
                 <FieldHint>
-                  Time after settlement before any tokens can be claimed. 0 = no cliff.
+                  Time after settlement before any tokens can be claimed. 0 = no
+                  cliff.
                 </FieldHint>
               </div>
 
@@ -654,7 +699,8 @@ export function CreateSale() {
 
               {!vestingValid && (
                 <FieldHint error>
-                  When enabled, cliff or vesting duration must be greater than zero.
+                  When enabled, cliff or vesting duration must be greater than
+                  zero.
                 </FieldHint>
               )}
 

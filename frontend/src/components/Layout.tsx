@@ -24,7 +24,9 @@ export function Layout() {
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2.5">
               <LogoMark size={32} />
-              <span className="font-bold tracking-wider text-slate-900 text-sm">SEALPAD</span>
+              <span className="font-bold tracking-wider text-slate-900 text-sm">
+                SEALPAD
+              </span>
             </Link>
             <nav className="hidden md:flex items-center gap-8">
               {navItems.map((item) => {
@@ -58,7 +60,9 @@ export function Layout() {
                   onCorrectChain ? "bg-brand-500" : "bg-rose-500 animate-pulse"
                 }`}
               />
-              {onCorrectChain ? REQUIRED_CHAIN_LABEL : `WRONG CHAIN · ${chainId}`}
+              {onCorrectChain
+                ? REQUIRED_CHAIN_LABEL
+                : `WRONG CHAIN · ${chainId}`}
             </span>
             <ConnectButton showBalance={false} chainStatus="none" />
           </div>

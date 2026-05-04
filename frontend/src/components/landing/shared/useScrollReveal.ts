@@ -9,7 +9,11 @@ type Options = { threshold?: number; once?: boolean; rootMargin?: string };
 export function useScrollReveal<T extends HTMLElement = HTMLDivElement>(
   options: Options = {},
 ) {
-  const { threshold = 0.15, once = true, rootMargin = "0px 0px -50px 0px" } = options;
+  const {
+    threshold = 0.15,
+    once = true,
+    rootMargin = "0px 0px -50px 0px",
+  } = options;
   const ref = useRef<T>(null);
   const [visible, setVisible] = useState(false);
 

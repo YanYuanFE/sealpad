@@ -1,12 +1,7 @@
 import { useState } from "react";
 import { usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
@@ -108,8 +103,7 @@ export function ClaimPanel({
                 disabled={!!step}
                 className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white py-3 rounded font-semibold transition-colors"
               >
-                {step ||
-                  `Claim ${fmt.fmtSale(userClaimable)} ${fmt.saleLabel}`}
+                {step || `Claim ${fmt.fmtSale(userClaimable)} ${fmt.saleLabel}`}
               </button>
             )}
           </div>

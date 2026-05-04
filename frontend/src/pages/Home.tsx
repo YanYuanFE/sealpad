@@ -3,12 +3,7 @@ import { Link } from "react-router-dom";
 import { useReadContract, useReadContracts } from "wagmi";
 import { erc20Abi, formatEther, formatUnits } from "viem";
 import { Plus, Lock } from "@phosphor-icons/react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   SEALPAD_FACTORY_ABI,

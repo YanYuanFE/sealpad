@@ -27,9 +27,11 @@ export function TechSection() {
               Infrastructure
             </h2>
             <p className="mt-8 text-slate-300 max-w-xl">
-              SealPad operates at the intersection of Zama's fhEVM and Ethereum's
-              security. We use{" "}
-              <span className="text-brand-300 font-medium">"Blind Smart Contracts"</span>{" "}
+              SealPad operates at the intersection of Zama's fhEVM and
+              Ethereum's security. We use{" "}
+              <span className="text-brand-300 font-medium">
+                "Blind Smart Contracts"
+              </span>{" "}
               that process logic on hidden states without ever decrypting them.
             </p>
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
