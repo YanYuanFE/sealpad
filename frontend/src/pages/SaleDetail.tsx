@@ -309,7 +309,8 @@ export function SaleDetail() {
       {sale.status === 0 && isEnded && (
         <FinalizeBanner
           vaultAddress={vaultAddress}
-          onFinalized={refetch}
+          finalizeRequestedAt={sale.finalizeRequestedAt}
+          onTransitioned={refetch}
           onError={handleSettleError}
         />
       )}

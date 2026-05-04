@@ -61,6 +61,7 @@ contract SaleVault is ReentrancyGuard {
         uint64 totalRaised;
         uint64 settledAt;
         uint256 saleTokenScale;
+        uint256 finalizeRequestedAt;
     }
 
     struct CreateSaleParams {
@@ -123,6 +124,10 @@ contract SaleVault is ReentrancyGuard {
     uint64 public totalRaised;
     uint64 public settledAt;
     uint256 public saleTokenScale;
+    /// Block number at which `requestFinalize()` was called, or 0 if it hasn't.
+    /// `finalize()` requires that at least FINALIZE_REORG_DELAY blocks have
+    /// passed since this point — see the two-step lifecycle note below.
+    uint256 public finalizeRequestedAt;
 
     // Independent deposit pool (public amounts, sets per-user upper bound).
     mapping(address => uint64) public deposits;
@@ -149,6 +154,14 @@ contract SaleVault is ReentrancyGuard {
 
     uint8 public constant MAX_PARTICIPANTS = 50;
 
+    /// Block delay between `requestFinalize` and `finalize` to defend against
+    /// reorg-based decryption leakage. The Zama docs recommend ≥95 blocks for
+    /// Ethereum-equivalent reorg depth — see ACL/reorgs_handling.md. Without
+    /// this gap an attacker could publicDecrypt the marked ciphertexts off the
+    /// pre-reorg state and keep the plaintext after the on-chain ACL grant
+    /// gets reverted.
+    uint256 public constant FINALIZE_REORG_DELAY = 95;
+
     // ============================================================
     //                          EVENTS
     // ============================================================
@@ -159,6 +172,7 @@ contract SaleVault is ReentrancyGuard {
     event DepositWithdrawn(address indexed user, uint64 amount);
     event ContributionPlaced(address indexed user);
     event BidPlaced(address indexed user, uint64 bidPrice);
+    event FinalizeRequested(uint256 blockNumber);
     event SaleFinalizing();
     event SaleSettled(uint64 clearingPrice, uint64 totalRaised);
     event SaleFailed();
@@ -189,6 +203,9 @@ contract SaleVault is ReentrancyGuard {
     error NothingToClaim();
     error NothingToWithdraw();
     error ETHTransferFailed();
+    error AlreadyRequested();
+    error NotRequested();
+    error ReorgWindow();
 
     // ============================================================
     //                       CONSTRUCTOR
@@ -428,7 +445,11 @@ contract SaleVault is ReentrancyGuard {
     //                   FINALIZE (Phase 1)
     // ============================================================
 
-    function finalize() external nonReentrant {
+    /// @notice Step 1 of finalization: record the request block. Empty sales
+    ///         (no participants) settle to Failed immediately because there's
+    ///         no ACL to grant — the reorg risk only exists when we'd be
+    ///         marking ciphertexts publicly decryptable.
+    function requestFinalize() external nonReentrant {
         if (status != SaleStatus.Active) revert SaleNotActive();
         if (block.timestamp < endTime) revert SaleNotEnded();
 
@@ -438,6 +459,19 @@ contract SaleVault is ReentrancyGuard {
             emit SaleFailed();
             return;
         }
+
+        if (finalizeRequestedAt != 0) revert AlreadyRequested();
+        finalizeRequestedAt = block.number;
+        emit FinalizeRequested(block.number);
+    }
+
+    /// @notice Step 2 of finalization: after the reorg-safety window, mark
+    ///         every encrypted contribution/bid publicly decryptable so the
+    ///         KMS can produce the proof for off-chain submission.
+    function finalize() external nonReentrant {
+        if (status != SaleStatus.Active) revert SaleNotActive();
+        if (finalizeRequestedAt == 0) revert NotRequested();
+        if (block.number < finalizeRequestedAt + FINALIZE_REORG_DELAY) revert ReorgWindow();
 
         status = SaleStatus.Finalizing;
 
@@ -766,6 +800,7 @@ contract SaleVault is ReentrancyGuard {
         s.totalRaised = totalRaised;
         s.settledAt = settledAt;
         s.saleTokenScale = saleTokenScale;
+        s.finalizeRequestedAt = finalizeRequestedAt;
     }
 
     function getParticipant(uint8 index) external view returns (address) {

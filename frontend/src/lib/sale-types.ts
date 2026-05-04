@@ -21,4 +21,5 @@ export type SaleData = {
   totalRaised: bigint;
   settledAt: bigint;
   saleTokenScale: bigint;
+  finalizeRequestedAt: bigint;
 };

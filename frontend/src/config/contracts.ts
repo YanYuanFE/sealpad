@@ -142,10 +142,31 @@ export const SALE_VAULT_ABI = [
   },
   {
     type: "function",
+    name: "requestFinalize",
+    inputs: [],
+    outputs: [],
+    stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
     name: "finalize",
     inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "finalizeRequestedAt",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "FINALIZE_REORG_DELAY",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -205,6 +226,7 @@ export const SALE_VAULT_ABI = [
           { name: "totalRaised", type: "uint64" },
           { name: "settledAt", type: "uint64" },
           { name: "saleTokenScale", type: "uint256" },
+          { name: "finalizeRequestedAt", type: "uint256" },
         ],
       },
     ],
@@ -289,6 +311,11 @@ export const SALE_VAULT_ABI = [
   },
 
   // ---------- EVENTS ----------
+  {
+    type: "event",
+    name: "FinalizeRequested",
+    inputs: [{ name: "blockNumber", type: "uint256", indexed: false }],
+  },
   {
     type: "event",
     name: "SaleSettled",

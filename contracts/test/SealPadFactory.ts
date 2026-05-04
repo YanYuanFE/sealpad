@@ -107,6 +107,20 @@ function makeDutchParams(overrides: Record<string, any>) {
   };
 }
 
+/// Drives both finalize phases for a vault: request, mine past the reorg
+/// window, then finalize. Empty sales return without calling finalize() since
+/// requestFinalize() short-circuits them to Failed.
+async function performFinalize(vault: SaleVault): Promise<void> {
+  await vault.requestFinalize();
+  const after = await vault.getSale();
+  if (Number(after.status) !== SaleStatus.Active) return;
+  // Advance past the FINALIZE_REORG_DELAY window (95 blocks per the contract).
+  for (let i = 0; i < 95; i++) {
+    await ethers.provider.send("evm_mine", []);
+  }
+  await vault.finalize();
+}
+
 /// Creates a sale via factory and returns the resulting vault contract handle.
 async function createSaleAndGetVault(
   factory: SealPadFactory,
@@ -641,7 +655,9 @@ describe("SealPadFactory + SaleVault", function () {
       await ethers.provider.send("evm_mine", []);
 
       const before = await saleToken.balanceOf(signers.creator.address);
-      await vault.finalize();
+      // Empty sale: requestFinalize short-circuits to Failed, no ACL is granted
+      // so the reorg-window timelock isn't needed.
+      await vault.requestFinalize();
       expect((await vault.getSale()).status).to.eq(SaleStatus.Failed);
       expect((await saleToken.balanceOf(signers.creator.address)) - before).to.eq(saleAmount);
     });
@@ -669,7 +685,7 @@ describe("SealPadFactory + SaleVault", function () {
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
 
-      await vault.finalize();
+      await performFinalize(vault);
       expect((await vault.getSale()).status).to.eq(SaleStatus.Finalizing);
     });
 
@@ -696,11 +712,11 @@ describe("SealPadFactory + SaleVault", function () {
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
 
-      await vault.finalize();
+      await performFinalize(vault);
       expect((await vault.getSale()).status).to.eq(SaleStatus.Finalizing);
     });
 
-    it("should revert if sale not ended", async function () {
+    it("requestFinalize reverts if sale not ended", async function () {
       const now = await getBlockTimestamp();
       const { vault } = await createSaleAndGetVault(
         factory,
@@ -712,7 +728,118 @@ describe("SealPadFactory + SaleVault", function () {
           endTime: now + 7200,
         }),
       );
-      await expect(vault.finalize()).to.be.revertedWithCustomError(vault, "SaleNotEnded");
+      await expect(vault.requestFinalize()).to.be.revertedWithCustomError(
+        vault,
+        "SaleNotEnded",
+      );
+    });
+
+    it("requestFinalize twice reverts AlreadyRequested", async function () {
+      const now = await getBlockTimestamp();
+      const { vault, vaultAddress } = await createSaleAndGetVault(
+        factory,
+        signers.creator,
+        makeFixedParams({
+          saleToken: saleTokenAddress,
+          payToken: payTokenAddress,
+          startTime: now + 1,
+          endTime: now + 3600,
+        }),
+      );
+      await payToken.connect(signers.alice).approve(vaultAddress, ethers.parseUnits("10000", 6));
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await vault.connect(signers.alice).addDeposit(2000);
+      const enc = await fhevm
+        .createEncryptedInput(vaultAddress, signers.alice.address)
+        .add64(1000)
+        .encrypt();
+      await vault.connect(signers.alice).contribute(enc.handles[0], enc.inputProof, []);
+
+      await ethers.provider.send("evm_increaseTime", [3700]);
+      await ethers.provider.send("evm_mine", []);
+
+      await vault.requestFinalize();
+      await expect(vault.requestFinalize()).to.be.revertedWithCustomError(
+        vault,
+        "AlreadyRequested",
+      );
+    });
+
+    it("finalize without prior request reverts NotRequested", async function () {
+      const now = await getBlockTimestamp();
+      const { vault, vaultAddress } = await createSaleAndGetVault(
+        factory,
+        signers.creator,
+        makeFixedParams({
+          saleToken: saleTokenAddress,
+          payToken: payTokenAddress,
+          startTime: now + 1,
+          endTime: now + 3600,
+        }),
+      );
+      await payToken.connect(signers.alice).approve(vaultAddress, ethers.parseUnits("10000", 6));
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await vault.connect(signers.alice).addDeposit(2000);
+      const enc = await fhevm
+        .createEncryptedInput(vaultAddress, signers.alice.address)
+        .add64(1000)
+        .encrypt();
+      await vault.connect(signers.alice).contribute(enc.handles[0], enc.inputProof, []);
+
+      await ethers.provider.send("evm_increaseTime", [3700]);
+      await ethers.provider.send("evm_mine", []);
+
+      await expect(vault.finalize()).to.be.revertedWithCustomError(
+        vault,
+        "NotRequested",
+      );
+    });
+
+    it("finalize before reorg window reverts ReorgWindow", async function () {
+      const now = await getBlockTimestamp();
+      const { vault, vaultAddress } = await createSaleAndGetVault(
+        factory,
+        signers.creator,
+        makeFixedParams({
+          saleToken: saleTokenAddress,
+          payToken: payTokenAddress,
+          startTime: now + 1,
+          endTime: now + 3600,
+        }),
+      );
+      await payToken.connect(signers.alice).approve(vaultAddress, ethers.parseUnits("10000", 6));
+      await ethers.provider.send("evm_increaseTime", [2]);
+      await ethers.provider.send("evm_mine", []);
+
+      await vault.connect(signers.alice).addDeposit(2000);
+      const enc = await fhevm
+        .createEncryptedInput(vaultAddress, signers.alice.address)
+        .add64(1000)
+        .encrypt();
+      await vault.connect(signers.alice).contribute(enc.handles[0], enc.inputProof, []);
+
+      await ethers.provider.send("evm_increaseTime", [3700]);
+      await ethers.provider.send("evm_mine", []);
+
+      await vault.requestFinalize();
+      // Mine 93 blocks; the finalize() tx itself adds one more to land at
+      // requestedAt + 94 — still inside the FINALIZE_REORG_DELAY = 95 window.
+      for (let i = 0; i < 93; i++) {
+        await ethers.provider.send("evm_mine", []);
+      }
+      await expect(vault.finalize()).to.be.revertedWithCustomError(
+        vault,
+        "ReorgWindow",
+      );
+      // One more mined block, plus the finalize() tx, lands at requestedAt + 95
+      // and clears the window.
+      await ethers.provider.send("evm_mine", []);
+      await vault.finalize();
+      expect((await vault.getSale()).status).to.eq(SaleStatus.Finalizing);
     });
   });
 
@@ -740,7 +867,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [120]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const before = await payToken.balanceOf(signers.alice.address);
       await vault.connect(signers.alice).withdrawDeposit();
@@ -842,7 +969,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getTotalContributedHandle(),
@@ -893,7 +1020,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getTotalContributedHandle(),
@@ -941,7 +1068,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getBidAmountHandle(signers.alice.address),
@@ -990,7 +1117,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getBidAmountHandle(signers.alice.address),
@@ -1039,7 +1166,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getBidAmountHandle(signers.alice.address),
@@ -1085,7 +1212,7 @@ describe("SealPadFactory + SaleVault", function () {
 
       await ethers.provider.send("evm_increaseTime", [3700]);
       await ethers.provider.send("evm_mine", []);
-      await vault.finalize();
+      await performFinalize(vault);
 
       const handles = [
         await vault.getBidAmountHandle(signers.alice.address),
