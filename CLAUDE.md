@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SealPad** — Confidential Token Sale Platform for the Zama Developer Program (Mainnet Season 2, Builder Track). Two-package monorepo (no workspace file): an FHEVM Hardhat project under `contracts/` and a Vite + React frontend under `frontend/`. The full design is in `TECHNICAL_DESIGN.md` (Chinese).
 
-SealPad is now a factory + clone architecture. The `SealPadFactory` on Sepolia (chainId `11155111`) is at `0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47`; the `SaleVault` implementation it clones from is at `0x0525B8EC8DCa1F2894DAD27Bdad666Ab380AeBE1`. Only the factory address is hardcoded in `frontend/src/config/contracts.ts`; per-sale vault addresses come from `factory.getAllSales()` / `factory.salesByCreator(user)` / `factory.salesByParticipant(user)`. The local `contracts/deployments/sepolia/` directory is `.gitignore`d, so the factory address constant is the single canonical source.
+SealPad is now a factory + clone architecture. The `SealPadFactory` on Sepolia (chainId `11155111`) is at `0x7a65faf7A25443aB70DCcc069a6b42BF208f15e0`; the `SaleVault` implementation it clones from is at `0x723B4Df76567f2445A870E71e717B0D9694dB56a`. Only the factory address is hardcoded in `frontend/src/config/contracts.ts`; per-sale vault addresses come from `factory.getAllSales()` / `factory.salesByCreator(user)` / `factory.salesByParticipant(user)`. The local `contracts/deployments/sepolia/` directory is `.gitignore`d, so the factory address constant is the single canonical source.
 
 ## Common commands
 

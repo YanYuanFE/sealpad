@@ -2,7 +2,7 @@
 // implementation in its constructor and clones it (EIP-1167) per sale.
 export const SEALPAD_FACTORY_ADDRESS = (import.meta.env
   .VITE_SEALPAD_FACTORY_ADDRESS ||
-  "0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47") as `0x${string}`;
+  "0x7a65faf7A25443aB70DCcc069a6b42BF208f15e0") as `0x${string}`;
 
 // ============================================================
 //                      FACTORY ABI

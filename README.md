@@ -35,10 +35,10 @@ Built for the [Zama Developer Program](https://www.zama.ai/post/zama-developer-p
 
 Sepolia testnet (chainId `11155111`):
 
-| Contract           | Address                                                                                                                         |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `SealPadFactory`   | [`0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47`](https://sepolia.etherscan.io/address/0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47) |
-| `SaleVault` (impl) | [`0x0525B8EC8DCa1F2894DAD27Bdad666Ab380AeBE1`](https://sepolia.etherscan.io/address/0x0525B8EC8DCa1F2894DAD27Bdad666Ab380AeBE1) |
+| Contract           | Address                                                                                                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `SealPadFactory`   | [`0x7a65faf7A25443aB70DCcc069a6b42BF208f15e0`](https://sepolia.etherscan.io/address/0x7a65faf7A25443aB70DCcc069a6b42BF208f15e0) |
+| `SaleVault` (impl) | [`0x723B4Df76567f2445A870E71e717B0D9694dB56a`](https://sepolia.etherscan.io/address/0x723B4Df76567f2445A870E71e717B0D9694dB56a) |
 
 The factory deploys EIP-1167 clones of `SaleVault` per sale. Per-sale
 addresses are discoverable via `factory.getAllSales()`,
