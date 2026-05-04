@@ -49,7 +49,7 @@ export function Layout() {
           </div>
           <div className="flex items-center gap-3">
             <span
-              className={`hidden sm:inline-flex items-center gap-2 font-mono text-[10px] tracking-widest border px-3 py-1.5 rounded ${
+              className={`hidden sm:inline-flex items-center gap-2 h-10 font-mono text-[10px] tracking-widest border px-3 rounded ${
                 onCorrectChain
                   ? "text-brand-700 border-brand-200 bg-brand-50"
                   : "text-rose-700 border-rose-300 bg-rose-50"
