@@ -18,6 +18,7 @@ import { useSaleFormatters } from "@/lib/sale-formatters";
 import { DepositPanel } from "@/components/sale/DepositPanel";
 import { ContributePanel } from "@/components/sale/ContributePanel";
 import { FinalizeBanner } from "@/components/sale/FinalizeBanner";
+import { NotStartedBanner } from "@/components/sale/NotStartedBanner";
 import { SettleBanner } from "@/components/sale/SettleBanner";
 import { ClaimPanel } from "@/components/sale/ClaimPanel";
 import { WithdrawButton } from "@/components/sale/WithdrawButton";
@@ -177,7 +178,11 @@ export function SaleDetail() {
           variant={statusVariant}
           className="font-mono text-[10px] tracking-widest uppercase"
         >
-          {SaleStatusLabel[sale.status]}
+          {sale.status === 0 && !isStarted
+            ? "Pending Start"
+            : sale.status === 0 && isEnded
+              ? "Ended"
+              : SaleStatusLabel[sale.status]}
         </Badge>
       </div>
 
@@ -283,6 +288,10 @@ export function SaleDetail() {
       <ParticipantsList vaultAddress={vaultAddress} sale={sale} fmt={fmt} />
 
       <Separator />
+
+      {sale.status === 0 && !isStarted && (
+        <NotStartedBanner startTime={sale.startTime} />
+      )}
 
       {sale.status === 0 && isStarted && !isEnded && isConnected && (
         <>
