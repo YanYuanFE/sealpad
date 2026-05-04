@@ -8,6 +8,7 @@ import { ScrambleText } from "@/components/landing/shared/ScrambleText";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
+import { RevealMyBidButton } from "./RevealMyBidButton";
 
 type Props = {
   vaultAddress: `0x${string}`;
@@ -157,6 +158,40 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
                       <span className="text-xs text-slate-500">
                         Contribution:
                       </span>
+                      {isMe ? (
+                        <RevealMyBidButton
+                          vaultAddress={vaultAddress}
+                          sale={sale}
+                          fmt={fmt}
+                          variant="inline"
+                        />
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
+                        >
+                          <Lock size={10} weight="fill" />
+                          <ScrambleText
+                            text="ENCRYPTED"
+                            mode="live"
+                            speed={180}
+                          />
+                        </Badge>
+                      )}
+                    </>
+                  )}
+                </div>
+                {isDutch && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Amount:</span>
+                    {isMe ? (
+                      <RevealMyBidButton
+                        vaultAddress={vaultAddress}
+                        sale={sale}
+                        fmt={fmt}
+                        variant="inline"
+                      />
+                    ) : (
                       <Badge
                         variant="outline"
                         className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
@@ -165,22 +200,10 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
                         <ScrambleText
                           text="ENCRYPTED"
                           mode="live"
-                          speed={180}
+                          speed={200}
                         />
                       </Badge>
-                    </>
-                  )}
-                </div>
-                {isDutch && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Amount:</span>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] font-mono tracking-widest uppercase border-brand-200 text-brand-700 bg-brand-50/40 inline-flex items-center gap-1"
-                    >
-                      <Lock size={10} weight="fill" />
-                      <ScrambleText text="ENCRYPTED" mode="live" speed={200} />
-                    </Badge>
+                    )}
                   </div>
                 )}
               </div>

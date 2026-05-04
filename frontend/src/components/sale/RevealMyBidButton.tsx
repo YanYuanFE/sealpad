@@ -11,6 +11,10 @@ type Props = {
   vaultAddress: `0x${string}`;
   sale: SaleData;
   fmt: SaleFormatters;
+  /// "full" (default) renders the standalone card; "inline" renders just a
+  /// chip-sized button that swaps to the cleartext value when revealed —
+  /// suitable for embedding inside a participant row.
+  variant?: "full" | "inline";
 };
 
 /// "Reveal my bid" button. Reads the user's encrypted contribution / bid
@@ -20,7 +24,12 @@ type Props = {
 /// The ACL was granted at contribute/bid time via `FHE.allow(amount, msg.sender)`
 /// in SaleVault, so the relayer accepts the request. No on-chain state changes;
 /// the cleartext stays in component state until page refresh.
-export function RevealMyBidButton({ vaultAddress, sale, fmt }: Props) {
+export function RevealMyBidButton({
+  vaultAddress,
+  sale,
+  fmt,
+  variant = "full",
+}: Props) {
   const { address, isConnected } = useAccount();
   const { signTypedDataAsync } = useSignTypedData();
   const [revealed, setRevealed] = useState<bigint | null>(null);
@@ -70,6 +79,33 @@ export function RevealMyBidButton({ vaultAddress, sale, fmt }: Props) {
   };
 
   if (!isConnected || handleIsZero || !handle) return null;
+
+  if (variant === "inline") {
+    if (revealed !== null) {
+      return (
+        <span className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-900">
+          {fmt.fmtPay(revealed)} {fmt.tokenLabel}
+          <button
+            onClick={() => setRevealed(null)}
+            title="Hide value"
+            className="text-slate-400 hover:text-slate-700 transition-colors"
+          >
+            <EyeSlash size={11} weight="fill" />
+          </button>
+        </span>
+      );
+    }
+    return (
+      <button
+        onClick={reveal}
+        disabled={!!step}
+        className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest uppercase border border-brand-200 hover:border-brand-300 hover:bg-brand-50/40 text-brand-700 bg-brand-50/40 px-2 py-1 rounded transition-colors disabled:opacity-60"
+      >
+        <Lock size={10} weight="fill" />
+        {step || "REVEAL"}
+      </button>
+    );
+  }
 
   if (revealed !== null) {
     return (
