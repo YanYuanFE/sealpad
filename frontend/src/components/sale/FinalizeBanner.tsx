@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  useAccount,
   useBlockNumber,
   usePublicClient,
   useReadContract,
@@ -9,7 +10,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useEnsureSepolia } from "@/lib/network";
 
 type Props = {
   vaultAddress: `0x${string}`;
@@ -28,6 +29,7 @@ export function FinalizeBanner({
   onTransitioned,
   onError,
 }: Props) {
+  const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
@@ -69,14 +71,16 @@ export function FinalizeBanner({
     try {
       setStep("Checking network...");
       await ensureSepolia();
-      setStep("Sign request...");
-      const h = await writeContractAsync({
+      setStep("Simulating...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: "requestFinalize",
         args: [],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+      setStep("Sign request...");
+      const h = await writeContractAsync(request);
       setStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Finalization requested");
@@ -96,14 +100,16 @@ export function FinalizeBanner({
     try {
       setStep("Checking network...");
       await ensureSepolia();
-      setStep("Sign finalize...");
-      const h = await writeContractAsync({
+      setStep("Simulating...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: "finalize",
         args: [],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+      setStep("Sign finalize...");
+      const h = await writeContractAsync(request);
       setStep("Requesting FHE decryption...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Sale finalized — awaiting decryption");

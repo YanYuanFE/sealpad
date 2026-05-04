@@ -166,7 +166,7 @@ function FieldHint({
 // ============================================================
 
 export function CreateSale() {
-  const { isConnected } = useAccount();
+  const { address, isConnected } = useAccount();
   const navigate = useNavigate();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
@@ -369,13 +369,19 @@ export function CreateSale() {
         vestingDuration: BigInt(vestingSec),
       };
 
-      const createHash = await writeContractAsync({
+      // Pre-flight via eth_call so contract-level reverts (InvalidParams,
+      // SaleEnded, etc.) surface as a readable toast before the wallet popup.
+      setStep("Simulating sale creation...");
+      const { request } = await publicClient.simulateContract({
         address: SEALPAD_FACTORY_ADDRESS,
         abi: SEALPAD_FACTORY_ABI,
         functionName: "createSale",
         args: [params],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+
+      setStep("Sign sale creation...");
+      const createHash = await writeContractAsync(request);
 
       setStep("Confirming...");
       const receipt = await publicClient.waitForTransactionReceipt({

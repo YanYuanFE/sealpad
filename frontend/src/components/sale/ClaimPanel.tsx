@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useEnsureSepolia } from "@/lib/network";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
 import { WithdrawButton } from "./WithdrawButton";
@@ -36,6 +36,7 @@ export function ClaimPanel({
   onWithdrawn,
   onError,
 }: Props) {
+  const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
@@ -47,14 +48,16 @@ export function ClaimPanel({
     try {
       setStep("Checking network...");
       await ensureSepolia();
-      setStep("Sign claim...");
-      const h = await writeContractAsync({
+      setStep("Simulating claim...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: "claim",
         args: [],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+      setStep("Sign claim...");
+      const h = await writeContractAsync(request);
       setStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Tokens claimed!");

@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 import { Lock } from "@phosphor-icons/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useEnsureSepolia } from "@/lib/network";
 import type { SaleData } from "@/lib/sale-types";
 
 type Props = {
@@ -27,6 +27,7 @@ export function SettleBanner({
   onSettled,
   onError,
 }: Props) {
+  const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
@@ -79,14 +80,16 @@ export function SettleBanner({
       const { publicDecryptHandles } = await import("@/lib/fhevm");
       const { values, proof } = await publicDecryptHandles(handles);
 
-      setStep("Sign settlement...");
-      const h = await writeContractAsync({
+      setStep("Simulating settlement...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: sale.saleType === 0 ? "settleFixed" : "settleDutch",
         args: [values, proof],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+      setStep("Sign settlement...");
+      const h = await writeContractAsync(request);
       setStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Sale settled!");

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useEnsureSepolia } from "@/lib/network";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
 import { RevealMyBidButton } from "./RevealMyBidButton";
@@ -107,26 +107,30 @@ export function ContributePanel({
         if (resolvedBidPrice === null) {
           throw new Error("Invalid bid price");
         }
-        setStep("Sign bid...");
-        const h = await writeContractAsync({
+        setStep("Simulating bid...");
+        const { request } = await publicClient.simulateContract({
           address: vaultAddress,
           abi: SALE_VAULT_ABI,
           functionName: "bid",
           args: [resolvedBidPrice, encrypted.handle, encrypted.inputProof, []],
-          chainId: REQUIRED_CHAIN_ID,
+          account: address,
         });
+        setStep("Sign bid...");
+        const h = await writeContractAsync(request);
         setStep("Confirming...");
         await publicClient.waitForTransactionReceipt({ hash: h });
         toast.success("Bid submitted!");
       } else {
-        setStep("Sign contribution...");
-        const h = await writeContractAsync({
+        setStep("Simulating contribution...");
+        const { request } = await publicClient.simulateContract({
           address: vaultAddress,
           abi: SALE_VAULT_ABI,
           functionName: "contribute",
           args: [encrypted.handle, encrypted.inputProof, []],
-          chainId: REQUIRED_CHAIN_ID,
+          account: address,
         });
+        setStep("Sign contribution...");
+        const h = await writeContractAsync(request);
         setStep("Confirming...");
         await publicClient.waitForTransactionReceipt({ hash: h });
         toast.success("Contribution submitted!");

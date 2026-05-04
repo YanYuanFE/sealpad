@@ -68,15 +68,17 @@ export function DepositPanel({
         await publicClient.waitForTransactionReceipt({ hash: ah });
         toast.success("Token approved");
       }
-      setStep("Depositing...");
-      const h = await writeContractAsync({
+      setStep("Simulating deposit...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: "addDeposit",
         args: [raw],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
         ...(fmt.isETH ? { value: raw } : {}),
       });
+      setStep("Depositing...");
+      const h = await writeContractAsync(request);
       setStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Deposit confirmed!");

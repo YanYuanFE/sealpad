@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useEnsureSepolia } from "@/lib/network";
 
 type Props = {
   vaultAddress: `0x${string}`;
@@ -23,6 +23,7 @@ export function WithdrawButton({
   onWithdrawn,
   onError,
 }: Props) {
+  const { address } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
@@ -34,14 +35,16 @@ export function WithdrawButton({
     try {
       setStep("Checking network...");
       await ensureSepolia();
-      setStep("Sign withdrawal...");
-      const h = await writeContractAsync({
+      setStep("Simulating...");
+      const { request } = await publicClient.simulateContract({
         address: vaultAddress,
         abi: SALE_VAULT_ABI,
         functionName: "withdrawDeposit",
         args: [],
-        chainId: REQUIRED_CHAIN_ID,
+        account: address,
       });
+      setStep("Sign withdrawal...");
+      const h = await writeContractAsync(request);
       setStep("Confirming...");
       await publicClient.waitForTransactionReceipt({ hash: h });
       toast.success("Deposit withdrawn!");
