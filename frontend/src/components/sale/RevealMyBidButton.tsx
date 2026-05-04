@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAccount, useReadContract, useSignTypedData } from "wagmi";
 import { toast } from "sonner";
-import { Eye, EyeSlash, Lock } from "@phosphor-icons/react";
+import { EyeSlash, Lock } from "@phosphor-icons/react";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
 import type { SaleData } from "@/lib/sale-types";
@@ -11,25 +11,17 @@ type Props = {
   vaultAddress: `0x${string}`;
   sale: SaleData;
   fmt: SaleFormatters;
-  /// "full" (default) renders the standalone card; "inline" renders just a
-  /// chip-sized button that swaps to the cleartext value when revealed —
-  /// suitable for embedding inside a participant row.
-  variant?: "full" | "inline";
 };
 
-/// "Reveal my bid" button. Reads the user's encrypted contribution / bid
-/// amount handle from the vault, then runs the EIP-712 user-decryption flow
-/// — only this browser tab sees the plaintext.
+/// Inline reveal control for the user's own encrypted contribution / bid.
+/// Reads the user's handle from the vault, runs the EIP-712 user-decryption
+/// flow, and displays the cleartext locally — only this browser tab sees the
+/// plaintext. The on-chain ACL is set up at contribute/bid time via
+/// FHE.allow(amount, msg.sender) in SaleVault, so the relayer accepts the
+/// request without a separate ACL grant.
 ///
-/// The ACL was granted at contribute/bid time via `FHE.allow(amount, msg.sender)`
-/// in SaleVault, so the relayer accepts the request. No on-chain state changes;
-/// the cleartext stays in component state until page refresh.
-export function RevealMyBidButton({
-  vaultAddress,
-  sale,
-  fmt,
-  variant = "full",
-}: Props) {
+/// Designed to slot into a label-value row (e.g. "Contribution: <reveal>").
+export function RevealMyBidButton({ vaultAddress, sale, fmt }: Props) {
   const { address, isConnected } = useAccount();
   const { mutateAsync: signTypedDataAsync } = useSignTypedData();
   const [revealed, setRevealed] = useState<bigint | null>(null);
@@ -80,56 +72,18 @@ export function RevealMyBidButton({
 
   if (!isConnected || handleIsZero || !handle) return null;
 
-  if (variant === "inline") {
-    if (revealed !== null) {
-      return (
-        <span className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-900">
-          {fmt.fmtPay(revealed)} {fmt.tokenLabel}
-          <button
-            onClick={() => setRevealed(null)}
-            title="Hide value"
-            className="text-slate-400 hover:text-slate-700 transition-colors"
-          >
-            <EyeSlash size={11} weight="fill" />
-          </button>
-        </span>
-      );
-    }
-    return (
-      <button
-        onClick={reveal}
-        disabled={!!step}
-        className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest uppercase border border-brand-200 hover:border-brand-300 hover:bg-brand-50/40 text-brand-700 bg-brand-50/40 px-2 py-1 rounded transition-colors disabled:opacity-60"
-      >
-        <Lock size={10} weight="fill" />
-        {step || "REVEAL"}
-      </button>
-    );
-  }
-
   if (revealed !== null) {
     return (
-      <div className="rounded border border-brand-200 bg-brand-50/40 p-3 text-sm space-y-1">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[10px] tracking-widest text-brand-700 uppercase inline-flex items-center gap-1.5">
-            <Eye size={10} weight="fill" />
-            {isDutch ? "Your Bid Amount" : "Your Contribution"}
-          </span>
-          <button
-            onClick={() => setRevealed(null)}
-            className="font-mono text-[10px] tracking-widest text-slate-500 hover:text-slate-900"
-          >
-            <EyeSlash size={10} weight="fill" className="inline mr-1" />
-            HIDE
-          </button>
-        </div>
-        <p className="font-mono font-bold text-slate-900">
-          {fmt.fmtPay(revealed)} {fmt.tokenLabel}
-        </p>
-        <p className="text-xs text-slate-500">
-          Decrypted privately via EIP-712 — nobody else sees this value.
-        </p>
-      </div>
+      <span className="inline-flex items-center gap-1.5 font-mono text-xs text-slate-900">
+        {fmt.fmtPay(revealed)} {fmt.tokenLabel}
+        <button
+          onClick={() => setRevealed(null)}
+          title="Hide value"
+          className="text-slate-400 hover:text-slate-700 transition-colors"
+        >
+          <EyeSlash size={11} weight="fill" />
+        </button>
+      </span>
     );
   }
 
@@ -137,13 +91,10 @@ export function RevealMyBidButton({
     <button
       onClick={reveal}
       disabled={!!step}
-      className="w-full inline-flex items-center justify-center gap-2 border border-brand-200 hover:border-brand-300 hover:bg-brand-50/40 text-brand-700 px-4 py-2.5 rounded text-sm font-medium transition-colors disabled:opacity-60"
+      className="inline-flex items-center gap-1 font-mono text-[10px] tracking-widest uppercase border border-brand-200 hover:border-brand-300 hover:bg-brand-50/40 text-brand-700 bg-brand-50/40 px-2 py-1 rounded transition-colors disabled:opacity-60"
     >
-      <Lock size={12} weight="fill" />
-      {step ||
-        (isDutch
-          ? "Reveal my bid amount (private)"
-          : "Reveal my contribution (private)")}
+      <Lock size={10} weight="fill" />
+      {step || "REVEAL"}
     </button>
   );
 }

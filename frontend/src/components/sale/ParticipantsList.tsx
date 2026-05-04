@@ -163,7 +163,6 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
                           vaultAddress={vaultAddress}
                           sale={sale}
                           fmt={fmt}
-                          variant="inline"
                         />
                       ) : (
                         <Badge
@@ -189,7 +188,6 @@ export function ParticipantsList({ vaultAddress, sale, fmt }: Props) {
                         vaultAddress={vaultAddress}
                         sale={sale}
                         fmt={fmt}
-                        variant="inline"
                       />
                     ) : (
                       <Badge
