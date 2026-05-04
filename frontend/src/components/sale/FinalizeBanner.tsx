@@ -54,12 +54,19 @@ export function FinalizeBanner({
   const requested = finalizeRequestedAt > 0n;
   const reorgDelay = typeof reorgDelayRaw === "bigint" ? reorgDelayRaw : 95n;
   const earliestBlock = finalizeRequestedAt + reorgDelay;
+  // blockNumber is async; until it lands we genuinely don't know whether the
+  // window is open — distinguish "still loading" from "definitely 0/positive".
+  const blockNumberKnown = typeof blockNumber === "bigint";
   const blocksRemaining =
-    requested && typeof blockNumber === "bigint"
+    requested && blockNumberKnown
       ? earliestBlock > blockNumber
         ? earliestBlock - blockNumber
         : 0n
       : null;
+  // While blockNumber is loading on a freshly mounted (or refreshed) page, we
+  // need a third "waiting for chain head" state so the request button doesn't
+  // briefly flash for a sale that's already past requestFinalize.
+  const waitingForBlockNumber = requested && !blockNumberKnown;
   const reorgWindowOpen =
     requested && blocksRemaining !== null && blocksRemaining > 0n;
   const readyToFinalize =
@@ -122,6 +129,21 @@ export function FinalizeBanner({
       setStep(null);
     }
   };
+
+  if (waitingForBlockNumber) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center space-y-2">
+          <p className="font-mono text-xs tracking-widest text-slate-500 uppercase">
+            Loading reorg-window status…
+          </p>
+          <p className="text-xs text-slate-500">
+            Reading the current block number to compute remaining wait time.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (reorgWindowOpen) {
     // Sepolia ≈ 12s/block, so ~95 blocks ≈ 19 minutes. Display both block and
