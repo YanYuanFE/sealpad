@@ -85,7 +85,7 @@ export function SaleDetail() {
     query: { enabled: !!address && idResolvable },
   });
 
-  const { data: userAllocation } = useReadContract({
+  const { data: userAllocation, refetch: refetchAllocation } = useReadContract({
     address: vaultAddress,
     abi: SALE_VAULT_ABI,
     functionName: "allocations",
@@ -93,7 +93,7 @@ export function SaleDetail() {
     query: { enabled: !!address && sale?.status === 2 },
   });
 
-  const { data: userClaimable } = useReadContract({
+  const { data: userClaimable, refetch: refetchClaimable } = useReadContract({
     address: vaultAddress,
     abi: SALE_VAULT_ABI,
     functionName: "claimable",
@@ -112,6 +112,13 @@ export function SaleDetail() {
   const handleSettleError = (msg: string) => setError(msg || null);
   const refreshAll = async () => {
     await Promise.all([refetch(), refetchDeposit()]);
+  };
+  // After claim() the vault's tokensClaimed[user] is bumped → claimable(user)
+  // drops. Refetch allocation + claimable along with sale state so the result
+  // card immediately reflects "all claimed" instead of leaving the button up
+  // until the user manually refreshes.
+  const refreshAfterClaim = async () => {
+    await Promise.all([refetch(), refetchAllocation(), refetchClaimable()]);
   };
 
   if (!validVaultAddress || isKnownVault === false) {
@@ -343,7 +350,7 @@ export function SaleDetail() {
           currentDeposit={currentDeposit}
           userAllocation={userAllocation}
           userClaimable={userClaimable}
-          onClaimed={refetch}
+          onClaimed={refreshAfterClaim}
           onWithdrawn={refetchDeposit}
           onError={handleSettleError}
         />
