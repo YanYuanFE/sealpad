@@ -49,24 +49,36 @@ export function DepositPanel({
   });
 
   const handleDeposit = async () => {
-    if (!publicClient || !depositInput) return;
+    if (!publicClient || !depositInput || !address) return;
     onError("");
     try {
       setStep("Checking network...");
       await ensureSepolia();
       const raw = fmt.parsePay(depositInput);
       if (!fmt.isETH) {
-        setStep("Sign approval...");
-        const ah = await writeContractAsync({
+        // Skip approve if the existing allowance to the vault already covers
+        // this deposit. Saves a wallet popup + ~46k gas when the user is
+        // topping up.
+        setStep("Checking allowance...");
+        const currentAllowance = (await publicClient.readContract({
           address: sale.payToken as `0x${string}`,
           abi: erc20Abi,
-          functionName: "approve",
-          args: [vaultAddress, raw],
-          chainId: REQUIRED_CHAIN_ID,
-        });
-        setStep("Confirming approval...");
-        await publicClient.waitForTransactionReceipt({ hash: ah });
-        toast.success("Token approved");
+          functionName: "allowance",
+          args: [address, vaultAddress],
+        })) as bigint;
+        if (currentAllowance < raw) {
+          setStep("Sign approval...");
+          const ah = await writeContractAsync({
+            address: sale.payToken as `0x${string}`,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [vaultAddress, raw],
+            chainId: REQUIRED_CHAIN_ID,
+          });
+          setStep("Confirming approval...");
+          await publicClient.waitForTransactionReceipt({ hash: ah });
+          toast.success("Token approved");
+        }
       }
       setStep("Simulating deposit...");
       const { request } = await publicClient.simulateContract({

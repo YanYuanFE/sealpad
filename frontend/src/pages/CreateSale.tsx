@@ -293,33 +293,45 @@ export function CreateSale() {
     vestingValid;
 
   const handleCreate = async () => {
-    if (!publicClient || !formValid) return;
+    if (!publicClient || !formValid || !address) return;
     setError(null);
     try {
       setStep("Checking network...");
       await ensureSepolia();
 
       setStep("Reading sale token decimals...");
-      const saleTokenDecimals = Number(
-        await publicClient.readContract({
+      const [saleTokenDecimalsRaw, currentAllowance] = await Promise.all([
+        publicClient.readContract({
           address: saleToken as `0x${string}`,
           abi: erc20Abi,
           functionName: "decimals",
         }),
-      );
+        publicClient.readContract({
+          address: saleToken as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "allowance",
+          args: [address, SEALPAD_FACTORY_ADDRESS],
+        }),
+      ]);
+      const saleTokenDecimals = Number(saleTokenDecimalsRaw);
       const saleAmountRaw = parseUnits(saleAmount, saleTokenDecimals);
 
-      setStep("Sign token approval...");
-      const approveHash = await writeContractAsync({
-        address: saleToken as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "approve",
-        args: [SEALPAD_FACTORY_ADDRESS, saleAmountRaw],
-        chainId: REQUIRED_CHAIN_ID,
-      });
-      setStep("Confirming approval...");
-      await publicClient.waitForTransactionReceipt({ hash: approveHash });
-      toast.success("Token approved");
+      // Skip the approve tx if the existing allowance already covers this
+      // sale's lock amount. Saves the user a wallet popup + ~46k gas on a
+      // re-create or a topped-up allowance.
+      if ((currentAllowance as bigint) < saleAmountRaw) {
+        setStep("Sign token approval...");
+        const approveHash = await writeContractAsync({
+          address: saleToken as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "approve",
+          args: [SEALPAD_FACTORY_ADDRESS, saleAmountRaw],
+          chainId: REQUIRED_CHAIN_ID,
+        });
+        setStep("Confirming approval...");
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        toast.success("Token approved");
+      }
 
       setStep(
         isETH
