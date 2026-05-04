@@ -87,6 +87,8 @@ export const SEALPAD_FACTORY_ABI = [
       { name: "saleType", type: "uint8", indexed: false },
     ],
   },
+  // viem error decoding (registerParticipant guard).
+  { type: "error", name: "NotASale", inputs: [] },
 ] as const;
 
 // ============================================================
@@ -309,6 +311,33 @@ export const SALE_VAULT_ABI = [
     outputs: [{ name: "", type: "uint8" }],
     stateMutability: "view",
   },
+
+  // ---------- ERRORS ----------
+  // viem decodes reverts via the ABI. Without these entries the user only sees
+  // the 4-byte selector ("0xd0d04f60") instead of "NothingToWithdraw()".
+  { type: "error", name: "InvalidParams", inputs: [] },
+  { type: "error", name: "AlreadyInitialized", inputs: [] },
+  { type: "error", name: "NotFactory", inputs: [] },
+  { type: "error", name: "SaleNotActive", inputs: [] },
+  { type: "error", name: "SaleNotStarted", inputs: [] },
+  { type: "error", name: "SaleEnded", inputs: [] },
+  { type: "error", name: "SaleNotEnded", inputs: [] },
+  { type: "error", name: "NotCreator", inputs: [] },
+  { type: "error", name: "HasParticipants", inputs: [] },
+  { type: "error", name: "MaxParticipantsReached", inputs: [] },
+  { type: "error", name: "InsufficientDeposit", inputs: [] },
+  { type: "error", name: "DepositMismatch", inputs: [] },
+  { type: "error", name: "PriceBelowFloor", inputs: [] },
+  { type: "error", name: "NotWhitelisted", inputs: [] },
+  { type: "error", name: "NotFinalizing", inputs: [] },
+  { type: "error", name: "NotSettled", inputs: [] },
+  { type: "error", name: "NotFinished", inputs: [] },
+  { type: "error", name: "NothingToClaim", inputs: [] },
+  { type: "error", name: "NothingToWithdraw", inputs: [] },
+  { type: "error", name: "ETHTransferFailed", inputs: [] },
+  { type: "error", name: "AlreadyRequested", inputs: [] },
+  { type: "error", name: "NotRequested", inputs: [] },
+  { type: "error", name: "ReorgWindow", inputs: [] },
 
   // ---------- EVENTS ----------
   {
