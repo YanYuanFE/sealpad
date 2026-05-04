@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/constants";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
+import { RevealMyBidButton } from "./RevealMyBidButton";
 
 type Props = {
   vaultAddress: `0x${string}`;
@@ -233,6 +234,13 @@ export function ContributePanel({
         >
           {step || (hasJoined ? "Update (no transfer)" : "Encrypt & Submit")}
         </button>
+        {hasJoined && (
+          <RevealMyBidButton
+            vaultAddress={vaultAddress}
+            sale={sale}
+            fmt={fmt}
+          />
+        )}
       </CardContent>
     </Card>
   );
