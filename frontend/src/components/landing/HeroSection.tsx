@@ -1,19 +1,22 @@
 import { Link } from "react-router-dom";
 import { useReadContract } from "wagmi";
 import { Lightning, ArrowRight, GearSix, Lock } from "@phosphor-icons/react";
-import { SEALPAD_ADDRESS, SEALPAD_ABI } from "@/config/contracts";
+import {
+  SEALPAD_FACTORY_ABI,
+  SEALPAD_FACTORY_ADDRESS,
+} from "@/config/contracts";
 import { ScrambleText } from "./shared/ScrambleText";
 import { CounterRollUp } from "./shared/CounterRollUp";
 import { MagneticArea } from "./shared/MagneticArea";
 import { HashStream } from "./shared/HashStream";
 
 export function HeroSection() {
-  const { data: nextId } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "nextSaleId",
+  const { data: total } = useReadContract({
+    address: SEALPAD_FACTORY_ADDRESS,
+    abi: SEALPAD_FACTORY_ABI,
+    functionName: "totalSales",
   });
-  const totalSales = nextId !== undefined ? Number(nextId) : 0;
+  const totalSales = total !== undefined ? Number(total) : 0;
 
   return (
     <section className="relative min-h-screen pt-32 pb-24 px-6 md:px-8 overflow-hidden bg-canvas">

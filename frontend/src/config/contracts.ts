@@ -1,9 +1,13 @@
-// Contract address — update after deployment
-export const SEALPAD_ADDRESS = (import.meta.env.VITE_SEALPAD_ADDRESS || "0x16FB75310600a0d0D9919C29b3D7bE82e06e1B2f") as `0x${string}`;
+// Factory address — single canonical source. The factory deploys a SaleVault
+// implementation in its constructor and clones it (EIP-1167) per sale.
+export const SEALPAD_FACTORY_ADDRESS = (import.meta.env.VITE_SEALPAD_FACTORY_ADDRESS ||
+  "0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47") as `0x${string}`;
 
-// ABI — only the functions we need on the frontend
-export const SEALPAD_ABI = [
-  // ==================== CREATE / CANCEL ====================
+// ============================================================
+//                      FACTORY ABI
+// ============================================================
+// Hand-curated subset. Update by hand when SealPadFactory.sol changes.
+export const SEALPAD_FACTORY_ABI = [
   {
     type: "function",
     name: "createSale",
@@ -28,42 +32,94 @@ export const SEALPAD_ABI = [
         ],
       },
     ],
-    outputs: [{ name: "saleId", type: "uint256" }],
+    outputs: [{ name: "vault", type: "address" }],
     stateMutability: "nonpayable",
   },
+  {
+    type: "function",
+    name: "implementation",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getAllSales",
+    inputs: [],
+    outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "totalSales",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "salesByCreator",
+    inputs: [{ name: "creator", type: "address" }],
+    outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "salesByParticipant",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "address[]" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "isSale",
+    inputs: [{ name: "vault", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+    stateMutability: "view",
+  },
+  {
+    type: "event",
+    name: "SaleCreated",
+    inputs: [
+      { name: "vault", type: "address", indexed: true },
+      { name: "creator", type: "address", indexed: true },
+      { name: "saleType", type: "uint8", indexed: false },
+    ],
+  },
+] as const;
+
+// ============================================================
+//                      SALE VAULT ABI
+// ============================================================
+// Each sale lives in its own SaleVault clone. All function calls below
+// target a specific vault address (no saleId argument anymore).
+export const SALE_VAULT_ABI = [
+  // ---------- WRITES ----------
   {
     type: "function",
     name: "cancelSale",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
-
-  // ==================== DEPOSIT ====================
   {
     type: "function",
     name: "addDeposit",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "amount", type: "uint64" },
-    ],
+    inputs: [{ name: "amount", type: "uint64" }],
     outputs: [],
     stateMutability: "payable",
   },
   {
     type: "function",
     name: "withdrawDeposit",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
-
-  // ==================== CONTRIBUTE / BID ====================
   {
     type: "function",
     name: "contribute",
     inputs: [
-      { name: "saleId", type: "uint256" },
       { name: "encAmount", type: "bytes32" },
       { name: "inputProof", type: "bytes" },
       { name: "merkleProof", type: "bytes32[]" },
@@ -75,7 +131,6 @@ export const SEALPAD_ABI = [
     type: "function",
     name: "bid",
     inputs: [
-      { name: "saleId", type: "uint256" },
       { name: "bidPrice", type: "uint64" },
       { name: "encAmount", type: "bytes32" },
       { name: "inputProof", type: "bytes" },
@@ -84,12 +139,10 @@ export const SEALPAD_ABI = [
     outputs: [],
     stateMutability: "nonpayable",
   },
-
-  // ==================== FINALIZE / SETTLE ====================
   {
     type: "function",
     name: "finalize",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
@@ -97,7 +150,6 @@ export const SEALPAD_ABI = [
     type: "function",
     name: "settleFixed",
     inputs: [
-      { name: "saleId", type: "uint256" },
       { name: "decryptedValues", type: "uint64[]" },
       { name: "decryptionProof", type: "bytes" },
     ],
@@ -108,28 +160,25 @@ export const SEALPAD_ABI = [
     type: "function",
     name: "settleDutch",
     inputs: [
-      { name: "saleId", type: "uint256" },
       { name: "decryptedValues", type: "uint64[]" },
       { name: "decryptionProof", type: "bytes" },
     ],
     outputs: [],
     stateMutability: "nonpayable",
   },
-
-  // ==================== CLAIM ====================
   {
     type: "function",
     name: "claim",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [],
     stateMutability: "nonpayable",
   },
 
-  // ==================== VIEW ====================
+  // ---------- VIEWS ----------
   {
     type: "function",
     name: "getSale",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [
       {
         name: "",
@@ -162,124 +211,87 @@ export const SEALPAD_ABI = [
   },
   {
     type: "function",
-    name: "nextSaleId",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
     name: "deposits",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "uint64" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "hasParticipated",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "bool" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "userBidPrice",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "uint64" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getParticipant",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "index", type: "uint8" },
-    ],
+    inputs: [{ name: "index", type: "uint8" }],
     outputs: [{ name: "", type: "address" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "allocations",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "claimable",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "tokensClaimed",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getContributionHandle",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getBidAmountHandle",
-    inputs: [
-      { name: "saleId", type: "uint256" },
-      { name: "user", type: "address" },
-    ],
+    inputs: [{ name: "user", type: "address" }],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },
   {
     type: "function",
     name: "getTotalContributedHandle",
-    inputs: [{ name: "saleId", type: "uint256" }],
+    inputs: [],
     outputs: [{ name: "", type: "bytes32" }],
     stateMutability: "view",
   },
-
-  // ==================== EVENTS ====================
   {
-    type: "event",
-    name: "SaleCreated",
-    inputs: [
-      { name: "saleId", type: "uint256", indexed: true },
-      { name: "creator", type: "address", indexed: true },
-      { name: "saleType", type: "uint8", indexed: false },
-    ],
+    type: "function",
+    name: "MAX_PARTICIPANTS",
+    inputs: [],
+    outputs: [{ name: "", type: "uint8" }],
+    stateMutability: "view",
   },
+
+  // ---------- EVENTS ----------
   {
     type: "event",
     name: "SaleSettled",
     inputs: [
-      { name: "saleId", type: "uint256", indexed: true },
       { name: "clearingPrice", type: "uint64", indexed: false },
       { name: "totalRaised", type: "uint64", indexed: false },
     ],
@@ -287,13 +299,12 @@ export const SEALPAD_ABI = [
   {
     type: "event",
     name: "SaleFailed",
-    inputs: [{ name: "saleId", type: "uint256", indexed: true }],
+    inputs: [],
   },
   {
     type: "event",
     name: "AllocationSet",
     inputs: [
-      { name: "saleId", type: "uint256", indexed: true },
       { name: "user", type: "address", indexed: true },
       { name: "tokens", type: "uint256", indexed: false },
     ],
@@ -302,7 +313,6 @@ export const SEALPAD_ABI = [
     type: "event",
     name: "TokensClaimed",
     inputs: [
-      { name: "saleId", type: "uint256", indexed: true },
       { name: "user", type: "address", indexed: true },
       { name: "amount", type: "uint256", indexed: false },
     ],

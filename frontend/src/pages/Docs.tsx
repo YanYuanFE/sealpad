@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyAddress } from "@/components/CopyAddress";
-import { SEALPAD_ADDRESS } from "@/config/contracts";
+import { SEALPAD_FACTORY_ADDRESS } from "@/config/contracts";
 import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_LABEL } from "@/lib/network";
 
 const sections = [
@@ -93,7 +93,7 @@ export function Docs() {
           >
             {REQUIRED_CHAIN_LABEL} · {REQUIRED_CHAIN_ID}
           </Badge>
-          <CopyAddress address={SEALPAD_ADDRESS} truncate={false} />
+          <CopyAddress address={SEALPAD_FACTORY_ADDRESS} truncate={false} />
         </div>
       </div>
 
@@ -158,7 +158,9 @@ export function Docs() {
         title="What it is"
       >
         <p>
-          SealPad runs two kinds of token sales on a single contract: a{" "}
+          SealPad runs two kinds of token sales on a factory + clone
+          architecture (each sale lives in its own EIP-1167 vault deployed
+          by <Code>SealPadFactory</Code>): a{" "}
           <strong>Fixed Price</strong> sale where everyone pays the same
           creator-set price, and a sealed-bid <strong>Dutch Auction</strong>{" "}
           where participants choose a public bid price plus an encrypted
@@ -443,18 +445,23 @@ export function Docs() {
         title="Architecture & integration"
       >
         <p>
-          The contract is a single Solidity file (
-          <Code>contracts/SealPad.sol</Code>) that branches on{" "}
-          <Code>SaleType</Code>. The frontend uses a hand-curated ABI subset
-          in <Code>frontend/src/config/contracts.ts</Code> — typechain output
+          Two contracts: <Code>contracts/SealPadFactory.sol</Code> deploys
+          EIP-1167 clones of <Code>contracts/SaleVault.sol</Code> via
+          OpenZeppelin's <Code>Clones.clone()</Code>. Each sale lives in its
+          own vault clone — storage is isolated, FHE ACLs are keyed by the
+          clone's own address. The factory keeps three indexes
+          (<Code>allSales</Code>, <Code>salesByCreator</Code>,
+          <Code>salesByParticipant</Code>) for cheap listing queries. The
+          frontend uses a hand-curated ABI subset in{" "}
+          <Code>frontend/src/config/contracts.ts</Code> — typechain output
           is not imported.
         </p>
-        <Callout title="FHE settlement flow">
-          <pre className="font-mono text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{`finalize(saleId)
+        <Callout title="FHE settlement flow (per vault)">
+          <pre className="font-mono text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{`vault.finalize()
   → marks ciphertexts publicly decryptable
   → emits SaleFinalizing
 off-chain: KMS decrypts handles, produces proof
-settleFixed(saleId, decryptedValues, proof)
+vault.settleFixed(decryptedValues, proof)
   → FHE.checkSignatures verifies proof
   → computes per-user allocation
   → transfers totalPayment to creator
@@ -466,10 +473,10 @@ settleFixed(saleId, decryptedValues, proof)
             value={`${REQUIRED_CHAIN_LABEL} (chain ${REQUIRED_CHAIN_ID})`}
           />
           <KeyValue
-            label="Contract"
+            label="Factory"
             value={
               <CopyAddress
-                address={SEALPAD_ADDRESS}
+                address={SEALPAD_FACTORY_ADDRESS}
                 truncate={false}
                 className="text-slate-900"
               />

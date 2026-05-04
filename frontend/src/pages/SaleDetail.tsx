@@ -14,6 +14,8 @@ import {
   parseEther,
   formatUnits,
   formatEther,
+  isAddress,
+  getAddress,
 } from "viem";
 import { toast } from "sonner";
 import { Lock } from "@phosphor-icons/react";
@@ -24,7 +26,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { ScrambleText } from "@/components/landing/shared/ScrambleText";
 import { CopyAddress } from "@/components/CopyAddress";
-import { SEALPAD_ADDRESS, SEALPAD_ABI } from "@/config/contracts";
+import {
+  SEALPAD_FACTORY_ABI,
+  SEALPAD_FACTORY_ADDRESS,
+  SALE_VAULT_ABI,
+} from "@/config/contracts";
 import {
   SaleTypeLabel,
   SaleStatusLabel,
@@ -34,8 +40,12 @@ import {
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
 
 export function SaleDetail() {
-  const { id } = useParams<{ id: string }>();
-  const saleId = Number(id);
+  const { address: vaultParam } = useParams<{ address: string }>();
+  // Normalize to checksummed form so wagmi's query key is stable across casings.
+  const validVaultAddress = !!vaultParam && isAddress(vaultParam);
+  const vaultAddress = (validVaultAddress
+    ? getAddress(vaultParam!)
+    : "0x0000000000000000000000000000000000000000") as `0x${string}`;
   const { address, isConnected } = useAccount();
 
   const [depositInput, setDepositInput] = useState("");
@@ -51,8 +61,8 @@ export function SaleDetail() {
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
 
   // 30s tick keeps the start/end countdown fresh without re-running on every
-  // unrelated state change. The component remounts when saleId changes via
-  // route param, so the interval is naturally scoped to the page view.
+  // unrelated state change. The component remounts when the URL param changes,
+  // so the interval is naturally scoped to the page view.
   useEffect(() => {
     const id = window.setInterval(() => {
       setNow(Math.floor(Date.now() / 1000));
@@ -60,23 +70,22 @@ export function SaleDetail() {
     return () => window.clearInterval(id);
   }, []);
 
-  const validId = Number.isInteger(saleId) && saleId >= 0;
-
-  const { data: nextSaleId } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "nextSaleId",
+  // Verify the vault address actually came out of the factory before talking
+  // to it. A random 0x... that hits getSale would silently return zero state.
+  const { data: isKnownVault } = useReadContract({
+    address: SEALPAD_FACTORY_ADDRESS,
+    abi: SEALPAD_FACTORY_ABI,
+    functionName: "isSale",
+    args: [vaultAddress],
+    query: { enabled: validVaultAddress },
   });
 
-  const idOutOfRange =
-    validId && nextSaleId !== undefined && BigInt(saleId) >= nextSaleId;
-  const idResolvable = validId && !idOutOfRange;
+  const idResolvable = validVaultAddress && isKnownVault === true;
 
   const { data: sale, refetch } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
+    address: vaultAddress,
+    abi: SALE_VAULT_ABI,
     functionName: "getSale",
-    args: [BigInt(saleId)],
     query: { enabled: idResolvable },
   });
 
@@ -116,34 +125,34 @@ export function SaleDetail() {
   });
 
   const { data: userDeposit, refetch: refetchDeposit } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
+    address: vaultAddress,
+    abi: SALE_VAULT_ABI,
     functionName: "deposits",
-    args: address ? [BigInt(saleId), address] : undefined,
+    args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
 
   const { data: hasJoined } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
+    address: vaultAddress,
+    abi: SALE_VAULT_ABI,
     functionName: "hasParticipated",
-    args: address ? [BigInt(saleId), address] : undefined,
+    args: address ? [address] : undefined,
     query: { enabled: !!address },
   });
 
   const { data: userAllocation } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
+    address: vaultAddress,
+    abi: SALE_VAULT_ABI,
     functionName: "allocations",
-    args: address ? [BigInt(saleId), address] : undefined,
+    args: address ? [address] : undefined,
     query: { enabled: !!address && sale?.status === 2 },
   });
 
   const { data: userClaimable } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
+    address: vaultAddress,
+    abi: SALE_VAULT_ABI,
     functionName: "claimable",
-    args: address ? [BigInt(saleId), address] : undefined,
+    args: address ? [address] : undefined,
     query: { enabled: !!address && sale?.status === 2 },
   });
 
@@ -151,12 +160,12 @@ export function SaleDetail() {
   const participantCalls = useMemo(
     () =>
       Array.from({ length: participantCount }, (_, i) => ({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "getParticipant" as const,
-        args: [BigInt(saleId), i] as const,
+        args: [i] as const,
       })),
-    [participantCount, saleId],
+    [participantCount, vaultAddress],
   );
 
   const { data: participantResults } = useReadContracts({
@@ -184,13 +193,13 @@ export function SaleDetail() {
   const bidPriceCalls = useMemo(
     () =>
       participantAddrs.map((addr) => ({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "userBidPrice" as const,
-        args: [BigInt(saleId), addr as `0x${string}`] as const,
+        args: [addr as `0x${string}`] as const,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [saleId, participantsKey],
+    [vaultAddress, participantsKey],
   );
 
   const { data: bidPriceResults } = useReadContracts({
@@ -201,13 +210,13 @@ export function SaleDetail() {
   const depositCalls = useMemo(
     () =>
       participantAddrs.map((addr) => ({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "deposits" as const,
-        args: [BigInt(saleId), addr as `0x${string}`] as const,
+        args: [addr as `0x${string}`] as const,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [saleId, participantsKey],
+    [vaultAddress, participantsKey],
   );
 
   const { data: depositResults } = useReadContracts({
@@ -219,8 +228,7 @@ export function SaleDetail() {
   const publicClient = usePublicClient();
   const ensureSepolia = useEnsureSepolia();
 
-  if (!validId || idOutOfRange) {
-    const total = nextSaleId !== undefined ? Number(nextSaleId) : null;
+  if (!validVaultAddress || isKnownVault === false) {
     return (
       <Card>
         <CardContent className="py-16 text-center space-y-3">
@@ -228,16 +236,14 @@ export function SaleDetail() {
             NOT FOUND
           </p>
           <p className="text-slate-700">
-            Sale #{String(id)} doesn&apos;t exist.
+            {validVaultAddress
+              ? "This address isn't a SealPad sale."
+              : "That URL doesn't look like a sale address."}
           </p>
-          {total !== null && total > 0 && (
-            <p className="text-sm text-slate-500">
-              Currently {total} sale{total === 1 ? "" : "s"} (#0
-              {total > 1 ? `–#${total - 1}` : ""}).
+          {validVaultAddress && (
+            <p className="font-mono text-xs text-slate-500 break-all">
+              {vaultParam}
             </p>
-          )}
-          {total === 0 && (
-            <p className="text-sm text-slate-500">No sales have been created yet.</p>
           )}
           <Link
             to="/app"
@@ -303,7 +309,7 @@ export function SaleDetail() {
           address: sale.payToken as `0x${string}`,
           abi: erc20Abi,
           functionName: "approve",
-          args: [SEALPAD_ADDRESS, raw],
+          args: [vaultAddress, raw],
           chainId: REQUIRED_CHAIN_ID,
         });
         setDepositStep("Confirming approval...");
@@ -312,10 +318,10 @@ export function SaleDetail() {
       }
       setDepositStep("Depositing...");
       const h = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "addDeposit",
-        args: [BigInt(saleId), raw],
+        args: [raw],
         chainId: REQUIRED_CHAIN_ID,
         ...(isETH ? { value: raw } : {}),
       });
@@ -383,7 +389,7 @@ export function SaleDetail() {
       }
 
       const { encryptBidAmount } = await import("@/lib/fhevm");
-      const encrypted = await encryptBidAmount(address, computedCostRaw);
+      const encrypted = await encryptBidAmount(vaultAddress, address, computedCostRaw);
 
       if (isDutch) {
         const resolvedBidPrice = bidPriceRaw;
@@ -392,11 +398,10 @@ export function SaleDetail() {
         }
         setBidStep("Sign bid...");
         const h = await writeContractAsync({
-          address: SEALPAD_ADDRESS,
-          abi: SEALPAD_ABI,
+          address: vaultAddress,
+          abi: SALE_VAULT_ABI,
           functionName: "bid",
           args: [
-            BigInt(saleId),
             resolvedBidPrice,
             encrypted.handle,
             encrypted.inputProof,
@@ -410,10 +415,10 @@ export function SaleDetail() {
       } else {
         setBidStep("Sign contribution...");
         const h = await writeContractAsync({
-          address: SEALPAD_ADDRESS,
-          abi: SEALPAD_ABI,
+          address: vaultAddress,
+          abi: SALE_VAULT_ABI,
           functionName: "contribute",
-          args: [BigInt(saleId), encrypted.handle, encrypted.inputProof, []],
+          args: [encrypted.handle, encrypted.inputProof, []],
           chainId: REQUIRED_CHAIN_ID,
         });
         setBidStep("Confirming...");
@@ -438,10 +443,10 @@ export function SaleDetail() {
       await ensureSepolia();
       setFinalizeStep("Sign finalize...");
       const h = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "finalize",
-        args: [BigInt(saleId)],
+        args: [],
         chainId: REQUIRED_CHAIN_ID,
       });
       setFinalizeStep("Requesting FHE decryption...");
@@ -474,17 +479,16 @@ export function SaleDetail() {
       if (sale.saleType === 0) {
         const reads = await Promise.all([
           publicClient.readContract({
-            address: SEALPAD_ADDRESS,
-            abi: SEALPAD_ABI,
+            address: vaultAddress,
+            abi: SALE_VAULT_ABI,
             functionName: "getTotalContributedHandle",
-            args: [BigInt(saleId)],
           }),
           ...participantAddrs.map((addr) =>
             publicClient.readContract({
-              address: SEALPAD_ADDRESS,
-              abi: SEALPAD_ABI,
+              address: vaultAddress,
+              abi: SALE_VAULT_ABI,
               functionName: "getContributionHandle",
-              args: [BigInt(saleId), addr as `0x${string}`],
+              args: [addr as `0x${string}`],
             }),
           ),
         ]);
@@ -493,10 +497,10 @@ export function SaleDetail() {
         const reads = await Promise.all(
           participantAddrs.map((addr) =>
             publicClient.readContract({
-              address: SEALPAD_ADDRESS,
-              abi: SEALPAD_ABI,
+              address: vaultAddress,
+              abi: SALE_VAULT_ABI,
               functionName: "getBidAmountHandle",
-              args: [BigInt(saleId), addr as `0x${string}`],
+              args: [addr as `0x${string}`],
             }),
           ),
         );
@@ -509,10 +513,10 @@ export function SaleDetail() {
 
       setSettleStep("Sign settlement...");
       const h = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: sale.saleType === 0 ? "settleFixed" : "settleDutch",
-        args: [BigInt(saleId), values, proof],
+        args: [values, proof],
         chainId: REQUIRED_CHAIN_ID,
       });
       setSettleStep("Confirming...");
@@ -536,10 +540,10 @@ export function SaleDetail() {
       await ensureSepolia();
       setClaimStep("Sign claim...");
       const h = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "claim",
-        args: [BigInt(saleId)],
+        args: [],
         chainId: REQUIRED_CHAIN_ID,
       });
       setClaimStep("Confirming...");
@@ -563,10 +567,10 @@ export function SaleDetail() {
       await ensureSepolia();
       setWithdrawStep("Sign withdrawal...");
       const h = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: vaultAddress,
+        abi: SALE_VAULT_ABI,
         functionName: "withdrawDeposit",
-        args: [BigInt(saleId)],
+        args: [],
         chainId: REQUIRED_CHAIN_ID,
       });
       setWithdrawStep("Confirming...");
@@ -597,8 +601,9 @@ export function SaleDetail() {
             CONFIDENTIAL SALE
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-            Sale #{saleId}
+            Sale
           </h1>
+          <CopyAddress address={vaultAddress} truncate={false} className="mt-1" />
         </div>
         <Badge
           variant={statusVariant}

@@ -15,7 +15,7 @@ export default function App() {
         <Route path="/app" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="create" element={<CreateSale />} />
-          <Route path="sale/:id" element={<SaleDetail />} />
+          <Route path="sale/:address" element={<SaleDetail />} />
           <Route path="my" element={<MyActivity />} />
           <Route path="docs" element={<Docs />} />
         </Route>

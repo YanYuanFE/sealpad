@@ -1,6 +1,5 @@
 import { initSDK, createInstance, SepoliaConfig } from "@zama-fhe/relayer-sdk/web";
 import type { FhevmInstance } from "@zama-fhe/relayer-sdk/web";
-import { SEALPAD_ADDRESS } from "@/config/contracts";
 import { SEPOLIA_RPC_URL } from "@/config/wagmi";
 
 let instance: FhevmInstance | null = null;
@@ -42,12 +41,17 @@ export async function getFhevmInstance(): Promise<FhevmInstance> {
   return initPromise;
 }
 
+/// Encrypts a bid/contribution amount targeting a specific SaleVault clone.
+/// The vault address determines which contract's ACL the ciphertext is bound
+/// to — sale tokens (and any FHE handles) live inside the clone, not the
+/// factory.
 export async function encryptBidAmount(
+  vaultAddress: string,
   userAddress: string,
   amount: number | bigint,
 ): Promise<{ handle: `0x${string}`; inputProof: `0x${string}` }> {
   const inst = await getFhevmInstance();
-  const input = inst.createEncryptedInput(SEALPAD_ADDRESS, userAddress);
+  const input = inst.createEncryptedInput(vaultAddress, userAddress);
   input.add64(BigInt(amount));
   const encrypted = await input.encrypt();
 

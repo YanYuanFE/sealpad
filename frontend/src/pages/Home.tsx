@@ -3,14 +3,24 @@ import { Link } from "react-router-dom";
 import { useReadContract, useReadContracts } from "wagmi";
 import { erc20Abi, formatEther, formatUnits } from "viem";
 import { Plus, Lock } from "@phosphor-icons/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { SEALPAD_ADDRESS, SEALPAD_ABI } from "@/config/contracts";
+import {
+  SEALPAD_FACTORY_ABI,
+  SEALPAD_FACTORY_ADDRESS,
+  SALE_VAULT_ABI,
+} from "@/config/contracts";
 import {
   SaleTypeLabel,
   SaleStatusLabel,
   isETHPayToken,
   formatDuration,
+  shortenAddress,
 } from "@/lib/constants";
 
 const StatusVariant = [
@@ -45,12 +55,12 @@ type SaleData = {
 };
 
 function SaleCard({
-  id,
+  vaultAddress,
   sale,
   payTokenDecimals,
   now,
 }: {
-  id: number;
+  vaultAddress: string;
   sale: SaleData;
   payTokenDecimals?: number;
   now: number;
@@ -71,11 +81,14 @@ function SaleCard({
   }
 
   return (
-    <Link to={`/app/sale/${id}`} className="block group">
+    <Link to={`/app/sale/${vaultAddress}`} className="block group">
       <Card className="transition-all hover:border-brand-300 hover:shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="text-base font-semibold text-slate-900">
-            Sale #{id}
+          <CardTitle className="text-base font-semibold text-slate-900 inline-flex items-center gap-2">
+            <span>Sale</span>
+            <span className="font-mono text-xs text-slate-500">
+              {shortenAddress(vaultAddress)}
+            </span>
           </CardTitle>
           <Badge
             variant={
@@ -150,50 +163,56 @@ export function Home() {
     return () => window.clearInterval(id);
   }, []);
 
-  const { data: nextId } = useReadContract({
-    address: SEALPAD_ADDRESS,
-    abi: SEALPAD_ABI,
-    functionName: "nextSaleId",
+  // Step 1: factory tells us all the vault addresses.
+  const { data: vaultAddrsRaw } = useReadContract({
+    address: SEALPAD_FACTORY_ADDRESS,
+    abi: SEALPAD_FACTORY_ABI,
+    functionName: "getAllSales",
     query: { refetchInterval: 15000 },
   });
 
-  const saleCount = nextId !== undefined ? Number(nextId) : 0;
+  const vaultAddrs = useMemo(
+    () =>
+      vaultAddrsRaw ? (vaultAddrsRaw as readonly string[]).map((a) => a) : [],
+    [vaultAddrsRaw],
+  );
 
+  // Step 2: each vault holds its own sale state — fetch in parallel.
   const saleCalls = useMemo(
     () =>
-      Array.from({ length: saleCount }, (_, i) => ({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+      vaultAddrs.map((address) => ({
+        address: address as `0x${string}`,
+        abi: SALE_VAULT_ABI,
         functionName: "getSale" as const,
-        args: [BigInt(i)] as const,
       })),
-    [saleCount],
+    [vaultAddrs],
   );
 
   const { data: saleResults } = useReadContracts({
     contracts: saleCalls,
-    query: { enabled: saleCount > 0, refetchInterval: 30000 },
+    query: { enabled: saleCalls.length > 0, refetchInterval: 30000 },
   });
 
-  // Resolve which sales need a payToken.decimals() lookup. Stable string
-  // identity ("0|0xabc,1|0xdef,...") lets useMemo bail out when the underlying
-  // pay-token addresses haven't actually changed across saleResults refetches.
+  // Step 3: collect non-ETH pay-token decimals so the card formats amounts
+  // correctly. Keyed off a stable "(index|payToken)" string so the
+  // useReadContracts cache doesn't churn when the underlying tokens haven't
+  // changed.
   const payTokenLookupKey = useMemo(() => {
     if (!saleResults) return "";
     const parts: string[] = [];
-    for (let i = 0; i < saleCount; i++) {
+    for (let i = 0; i < vaultAddrs.length; i++) {
       const sale = saleResults[i]?.result as unknown as SaleData | undefined;
       if (!sale || isETHPayToken(sale.payToken)) continue;
       parts.push(`${i}|${sale.payToken.toLowerCase()}`);
     }
     return parts.join(",");
-  }, [saleResults, saleCount]);
+  }, [saleResults, vaultAddrs]);
 
   const payTokenDecimalCalls = useMemo(() => {
     if (!payTokenLookupKey) return [];
     return payTokenLookupKey.split(",").map((entry) => {
-      const [idStr, address] = entry.split("|");
-      return { id: Number(idStr), address: address as `0x${string}` };
+      const [idxStr, address] = entry.split("|");
+      return { idx: Number(idxStr), address: address as `0x${string}` };
     });
   }, [payTokenLookupKey]);
 
@@ -215,18 +234,20 @@ export function Home() {
     },
   });
 
-  const payTokenDecimalsBySaleId = useMemo(() => {
+  const payTokenDecimalsByIdx = useMemo(() => {
     const map = new Map<number, number>();
-    payTokenDecimalCalls.forEach(({ id }, index) => {
+    payTokenDecimalCalls.forEach(({ idx }, index) => {
       const result = payTokenDecimalResults?.[index]?.result;
       if (typeof result === "number") {
-        map.set(id, result);
+        map.set(idx, result);
       } else if (typeof result === "bigint") {
-        map.set(id, Number(result));
+        map.set(idx, Number(result));
       }
     });
     return map;
   }, [payTokenDecimalCalls, payTokenDecimalResults]);
+
+  const totalSales = vaultAddrs.length;
 
   return (
     <div className="space-y-8">
@@ -251,7 +272,7 @@ export function Home() {
         </Link>
       </div>
 
-      {saleCount === 0 ? (
+      {totalSales === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-slate-500">
             <Lock
@@ -264,16 +285,17 @@ export function Home() {
         </Card>
       ) : (
         <div className="grid gap-4">
-          {Array.from({ length: saleCount }, (_, i) => saleCount - 1 - i).map(
-            (id) => {
-              const result = saleResults?.[id];
+          {/* Newest first. */}
+          {Array.from({ length: totalSales }, (_, i) => totalSales - 1 - i).map(
+            (idx) => {
+              const result = saleResults?.[idx];
               if (!result?.result) return null;
               return (
                 <SaleCard
-                  key={id}
-                  id={id}
+                  key={vaultAddrs[idx]}
+                  vaultAddress={vaultAddrs[idx]}
                   sale={result.result as unknown as SaleData}
-                  payTokenDecimals={payTokenDecimalsBySaleId.get(id)}
+                  payTokenDecimals={payTokenDecimalsByIdx.get(idx)}
                   now={now}
                 />
               );

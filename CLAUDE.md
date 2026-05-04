@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **SealPad** — Confidential Token Sale Platform for the Zama Developer Program (Mainnet Season 2, Builder Track). Two-package monorepo (no workspace file): an FHEVM Hardhat project under `contracts/` and a Vite + React frontend under `frontend/`. The full design is in `TECHNICAL_DESIGN.md` (Chinese).
 
-The deployed `SealPad` contract on Sepolia (chainId `11155111`) is at `0x16FB75310600a0d0D9919C29b3D7bE82e06e1B2f` — this address is hardcoded in `frontend/src/config/contracts.ts`. The local `contracts/deployments/sepolia/` directory is `.gitignore`d, so the address constant is the single canonical source.
+SealPad is now a factory + clone architecture. The `SealPadFactory` on Sepolia (chainId `11155111`) is at `0x3459ce37025955235aaF9eaB1D5B2b679BFEBd47`; the `SaleVault` implementation it clones from is at `0x0525B8EC8DCa1F2894DAD27Bdad666Ab380AeBE1`. Only the factory address is hardcoded in `frontend/src/config/contracts.ts`; per-sale vault addresses come from `factory.getAllSales()` / `factory.salesByCreator(user)` / `factory.salesByParticipant(user)`. The local `contracts/deployments/sepolia/` directory is `.gitignore`d, so the factory address constant is the single canonical source.
 
 ## Common commands
 
@@ -18,7 +18,7 @@ All commands assume you have `cd`'d into the relevant package; there is no root-
 npm run compile              # hardhat compile + typechain (generates ./types)
 npm run test                 # hardhat test (uses fhevm mock — required, tests skip otherwise)
 npm run test:sepolia         # run tests against deployed Sepolia contract
-npx hardhat test test/SealPad.ts --grep "should accept encrypted contribution"   # single test
+npx hardhat test test/SealPadFactory.ts --grep "should accept encrypted contribution"   # single test
 npm run coverage             # solidity-coverage
 npm run lint                 # solhint + eslint + prettier check
 npm run deploy:sepolia       # hardhat-deploy to Sepolia (writes to deployments/sepolia/)
@@ -44,9 +44,9 @@ Frontend env: `VITE_SEALPAD_ADDRESS` overrides the hardcoded contract address. R
 
 ## Architecture
 
-### Sale lifecycle (single contract, two modes)
+### Sale lifecycle (factory + per-sale vault, two modes)
 
-`SealPad.sol` is one contract supporting both `FixedPrice` and `DutchAuction` sales via the `SaleType` enum. The state machine is:
+`SealPadFactory.sol` deploys EIP-1167 clones of `SaleVault.sol` (one clone per sale) via OpenZeppelin's `Clones.clone()`. Each `SaleVault` supports both `FixedPrice` and `DutchAuction` sales via the `SaleType` enum (selected at `initialize` time). The factory holds three indexes — `allSales[]`, `salesByCreator(address) => address[]`, `salesByParticipant(address) => address[]` — and the participant index is kept in sync by a callback: vaults call `factory.registerParticipant(user)` on a user's first `contribute`/`bid`. The state machine inside each vault is:
 
 ```
 Active → Finalizing → Settled    (success path)
@@ -56,7 +56,9 @@ Active → Cancelled               (creator cancels with no participants)
 
 The `finalize` function is the single entry to phase 2 — it sets status to `Finalizing`, calls `FHE.makePubliclyDecryptable` on every encrypted handle that needs to be revealed (the running total for FixedPrice + every individual contribution/bid), and emits `SaleFinalizing`. Off-chain, KMS decrypts these handles, then anyone calls `settleFixed` or `settleDutch` with the decrypted values + KMS proof. `FHE.checkSignatures` verifies the proof on-chain before allocations are computed.
 
-This split (finalize → KMS decrypt → settle) is the central reason the contract has two storage layouts per sale: encrypted fields (`euint64`) before settlement, plain `uint256` `allocations` after.
+This split (finalize → KMS decrypt → settle) is the central reason each vault has two storage layouts: encrypted fields (`euint64`) before settlement, plain `uint256` `allocations` after.
+
+Clone init quirk: EIP-1167 clones don't run the implementation's constructor, so the FHE coprocessor config (ACL/Coprocessor/KMSVerifier addresses written to ERC-7201 namespaced storage by `Impl.setCoprocessor`) is missing in fresh clones. `SaleVault.initialize` calls `Impl.setCoprocessor(ZamaConfig.getEthereumCoprocessorConfig())` explicitly to populate the clone's storage; without that, every FHE op on a fresh clone would fail.
 
 ### Independent deposit pool (vs. cWETH)
 
@@ -107,7 +109,7 @@ The frontend tracks both pay-token and sale-token decimals dynamically by callin
 - `MAX_PARTICIPANTS = 50` is the only protocol-wide constant. The token-side scale is per-sale (`Sale.saleTokenScale = 10**IERC20Metadata.decimals()`, locked at `createSale`); all token-math sites (`settleFixed`, `_computeClearing`, `_computeUserDutchAllocation`, `createSale` hardCap check) use this per-sale scale via `s.saleTokenScale` or the `cr.saleTokenScale` mirror in `ClearingResult`.
 - All payment math uses `uint64` for compatibility with FHE `euint64`. Token allocations are `uint256` because they're unencrypted and scaled by `saleTokenScale`. The `price` field semantics are uniform: payToken raw units per 1 whole sale token, regardless of decimals.
 - `payToken == address(0)` means native ETH throughout the contract; the helper is `_isETH`.
-- Tests live in `contracts/test/SealPad.ts` and skip themselves if `fhevm.isMock` is false — the suite only runs under the FHEVM mock harness.
+- Tests live in `contracts/test/SealPadFactory.ts` and skip themselves if `fhevm.isMock` is false — the suite only runs under the FHEVM mock harness.
 
 ## Conventions and gotchas
 

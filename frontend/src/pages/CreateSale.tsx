@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAccount, useWriteContract, usePublicClient } from "wagmi";
-import { erc20Abi, parseUnits, parseEther, isAddress } from "viem";
+import { erc20Abi, parseUnits, parseEther, isAddress, parseEventLogs } from "viem";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { SEALPAD_ADDRESS, SEALPAD_ABI } from "@/config/contracts";
+import {
+  SEALPAD_FACTORY_ABI,
+  SEALPAD_FACTORY_ADDRESS,
+} from "@/config/contracts";
 import { ZERO_ADDRESS, getErrorMessage } from "@/lib/constants";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
 
@@ -280,7 +283,7 @@ export function CreateSale() {
         address: saleToken as `0x${string}`,
         abi: erc20Abi,
         functionName: "approve",
-        args: [SEALPAD_ADDRESS, saleAmountRaw],
+        args: [SEALPAD_FACTORY_ADDRESS, saleAmountRaw],
         chainId: REQUIRED_CHAIN_ID,
       });
       setStep("Confirming approval...");
@@ -330,17 +333,28 @@ export function CreateSale() {
       };
 
       const createHash = await writeContractAsync({
-        address: SEALPAD_ADDRESS,
-        abi: SEALPAD_ABI,
+        address: SEALPAD_FACTORY_ADDRESS,
+        abi: SEALPAD_FACTORY_ABI,
         functionName: "createSale",
         args: [params],
         chainId: REQUIRED_CHAIN_ID,
       });
 
       setStep("Confirming...");
-      await publicClient.waitForTransactionReceipt({ hash: createHash });
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: createHash,
+      });
+
+      // Parse the SaleCreated log so we can navigate straight to the new vault.
+      const events = parseEventLogs({
+        abi: SEALPAD_FACTORY_ABI,
+        eventName: "SaleCreated",
+        logs: receipt.logs,
+      });
+      const vaultAddress = (events[0]?.args as { vault?: string } | undefined)?.vault ?? null;
+
       toast.success("Sale created!");
-      navigate("/app");
+      navigate(vaultAddress ? `/app/sale/${vaultAddress}` : "/app");
     } catch (err) {
       const msg = getErrorMessage(err);
       setError(msg);
