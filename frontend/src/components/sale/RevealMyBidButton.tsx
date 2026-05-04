@@ -31,7 +31,7 @@ export function RevealMyBidButton({
   variant = "full",
 }: Props) {
   const { address, isConnected } = useAccount();
-  const { signTypedDataAsync } = useSignTypedData();
+  const { mutateAsync: signTypedDataAsync } = useSignTypedData();
   const [revealed, setRevealed] = useState<bigint | null>(null);
   const [step, setStep] = useState<string | null>(null);
 

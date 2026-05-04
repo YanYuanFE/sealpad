@@ -37,7 +37,7 @@ export function DepositPanel({
   onError,
 }: Props) {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const publicClient = usePublicClient();
   const ensureSepolia = useEnsureSepolia();
 

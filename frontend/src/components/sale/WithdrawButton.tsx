@@ -25,7 +25,7 @@ export function WithdrawButton({
 }: Props) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
   const [step, setStep] = useState<string | null>(null);
 

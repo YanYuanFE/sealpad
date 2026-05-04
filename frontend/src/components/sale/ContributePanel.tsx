@@ -33,7 +33,7 @@ export function ContributePanel({
 }: Props) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
 
   const [quantityInput, setQuantityInput] = useState("");

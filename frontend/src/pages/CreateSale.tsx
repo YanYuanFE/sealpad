@@ -169,7 +169,7 @@ export function CreateSale() {
   const { address, isConnected } = useAccount();
   const navigate = useNavigate();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { mutateAsync: writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
 
   // Sale config
