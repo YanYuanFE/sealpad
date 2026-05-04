@@ -4,8 +4,9 @@ import {
   usePublicClient,
   useWriteContract,
   useBalance,
+  useReadContract,
 } from "wagmi";
-import { erc20Abi, formatEther } from "viem";
+import { erc20Abi } from "viem";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,10 +44,23 @@ export function DepositPanel({
   const [depositInput, setDepositInput] = useState("");
   const [step, setStep] = useState<string | null>(null);
 
+  // ETH path: useBalance for native gas balance.
   const { data: ethBalance } = useBalance({
     address,
     query: { enabled: fmt.isETH && !!address },
   });
+  // ERC-20 path: balanceOf(user). wagmi v2's useBalance dropped the `token`
+  // shortcut, so we go through useReadContract.
+  const { data: erc20Balance } = useReadContract({
+    address: sale.payToken as `0x${string}`,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !fmt.isETH && !!address },
+  });
+  const walletBalanceRaw: bigint | undefined = fmt.isETH
+    ? ethBalance?.value
+    : (erc20Balance as bigint | undefined);
 
   const handleDeposit = async () => {
     if (!publicClient || !depositInput || !address) return;
@@ -122,10 +136,8 @@ export function DepositPanel({
             <Label>Add Deposit ({fmt.tokenLabel})</Label>
             <span className="text-xs text-slate-500 font-mono">
               Balance:{" "}
-              {fmt.isETH
-                ? ethBalance
-                  ? `${Number(formatEther(ethBalance.value)).toFixed(6)} ETH`
-                  : "..."
+              {walletBalanceRaw !== undefined
+                ? `${Number(fmt.fmtPay(walletBalanceRaw)).toFixed(6)} ${fmt.tokenLabel}`
                 : "..."}
             </span>
           </div>
