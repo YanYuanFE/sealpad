@@ -1,110 +1,63 @@
 import { Reveal } from "./shared/Reveal";
-import { ScrambleText } from "./shared/ScrambleText";
 
-const flowSteps = [
+const phases = [
   {
     n: "01",
-    title: "Encrypted Entry",
-    desc: "User bids are encrypted locally before submission. The network only ever sees ciphertext.",
+    title: "Active",
+    desc: "Users deposit pay-token (the public upper bound) and submit FHE-encrypted contributions or bids. Updates leak no on-chain trace.",
   },
   {
     n: "02",
-    title: "The Zama FHE Engine",
-    desc: "Smart contracts perform mathematical operations (+, −, min) directly on encrypted bids. Clearing price and allocation are computed without the contract or any validator knowing the individual values.",
-    featured: true,
+    title: "Finalizing",
+    desc: "Anyone calls requestFinalize after endTime. After a 95-block reorg-safety window, anyone calls finalize to publish the encrypted handles for KMS to decrypt.",
   },
   {
     n: "03",
-    title: "Blind Tallying",
-    desc: "Demand curves are constructed in the ciphertext space. True price discovery occurs in total darkness.",
+    title: "Settled",
+    desc: "KMS produces signed cleartext. Anyone submits settleFixed or settleDutch with the proof; the contract verifies, then writes allocations and clearing price.",
   },
   {
     n: "04",
-    title: "Atomic Settlement",
-    desc: "Once the auction concludes, KMS-decrypted aggregates trigger token distribution and refunds — all on-chain.",
+    title: "Claim",
+    desc: "Vested sale tokens via claim. Unspent pay-token via withdrawDeposit. Both are pull-based; the contract never moves funds without a signature.",
   },
 ];
 
 export function HowItWorksSection() {
   return (
-    <section id="flow" className="py-32 px-6 md:px-8 bg-slate-50">
-      <div className="max-w-7xl mx-auto">
+    <section id="flow" className="bg-canvas border-t border-slate-200">
+      <div className="mx-auto max-w-7xl px-6 md:px-8 py-32 lg:py-40">
         <Reveal>
-          <h2 className="font-display text-5xl text-slate-900 mb-4">
-            Confidential Flow
-          </h2>
-          <p className="text-slate-600 max-w-3xl mb-6">
-            Powered by Zama's Fully Homomorphic Encryption, computations happen
-            on encrypted data without ever needing to decrypt it.
-          </p>
-          <div className="font-mono text-xs text-brand-600 mb-12 inline-flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse" />
-            SECURE COMPUTATION ACTIVE
+          <div className="lg:max-w-3xl">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-brand-500 uppercase">
+              Lifecycle
+            </p>
+            <h2 className="mt-10 text-4xl md:text-5xl lg:text-[3.5rem] leading-[1.05] tracking-tight text-slate-900 font-medium">
+              From creation to claim.
+            </h2>
+            <p className="mt-8 max-w-prose text-lg text-slate-600 leading-relaxed">
+              Every sale moves through four phases. The split between finalize
+              and settle reflects FHEVM's two-step decryption: ciphertexts are
+              marked publicly decryptable on-chain, then the KMS proof is
+              verified before settlement math runs.
+            </p>
           </div>
         </Reveal>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          {flowSteps.map((s, i) => (
-            <Reveal
-              key={s.n}
-              delay={i * 100}
-              direction={i % 2 === 0 ? "left" : "right"}
-            >
-              <div
-                className={`p-8 rounded-xl border h-full ${
-                  s.featured
-                    ? "bg-slate-900 text-white border-slate-700 md:row-span-2 relative overflow-hidden"
-                    : "bg-white border-slate-200"
-                }`}
-              >
-                {s.featured && (
-                  <div
-                    className="pointer-events-none absolute inset-0 opacity-30"
-                    style={{
-                      background:
-                        "radial-gradient(circle at 70% 20%, rgba(255,81,0,0.25), transparent 50%)",
-                    }}
-                  />
-                )}
-                <div
-                  className={`relative font-mono text-2xl ${
-                    s.featured ? "text-brand-300" : "text-brand-600"
-                  }`}
-                >
-                  {s.n}
-                </div>
-                <h3
-                  className={`relative mt-4 text-2xl font-bold ${
-                    s.featured ? "text-white" : "text-slate-900"
-                  }`}
-                >
-                  {s.featured ? (
-                    <ScrambleText
-                      text={s.title}
-                      duration={1100}
-                      trigger="viewport"
-                    />
-                  ) : (
-                    s.title
-                  )}
+        <div className="mt-20 lg:mt-24 grid md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-10">
+          {phases.map((p, i) => (
+            <Reveal key={p.n} delay={i * 100} direction="up">
+              <div>
+                <span className="font-mono text-[11px] tracking-[0.18em] text-slate-400 tabular-nums">
+                  {p.n}
+                </span>
+                <div className="mt-4 h-px bg-slate-200" />
+                <h3 className="mt-6 text-xl font-medium text-slate-900 tracking-tight">
+                  {p.title}
                 </h3>
-                <p
-                  className={`relative mt-4 leading-relaxed ${
-                    s.featured ? "text-slate-300" : "text-slate-600"
-                  }`}
-                >
-                  {s.desc}
+                <p className="mt-3 text-sm text-slate-600 leading-relaxed">
+                  {p.desc}
                 </p>
-                {s.featured && (
-                  <div className="relative mt-6 flex gap-3 flex-wrap">
-                    <span className="border border-brand-400 text-brand-300 font-mono text-[10px] tracking-widest px-3 py-1.5 rounded">
-                      PRIVACY-PRESERVING EVM
-                    </span>
-                    <span className="border border-brand-400 text-brand-300 font-mono text-[10px] tracking-widest px-3 py-1.5 rounded">
-                      ZERO LEAKAGE
-                    </span>
-                  </div>
-                )}
               </div>
             </Reveal>
           ))}

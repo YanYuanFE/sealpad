@@ -26,6 +26,8 @@ import {
 } from "@/config/contracts";
 import { ZERO_ADDRESS, getErrorMessage } from "@/lib/constants";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
+import { useTokenInfo } from "@/lib/use-token-info";
+import { TokenInfoBadge } from "@/components/TokenInfoBadge";
 
 // ============================================================
 //                       TIME UTILITIES
@@ -202,10 +204,22 @@ export function CreateSale() {
   const [error, setError] = useState<string | null>(null);
 
   const isETH = payTokenChoice === "ETH";
-  const isValidSaleToken = saleToken !== "" && isAddress(saleToken);
+
+  // Live ERC-20 verification — drives the inline status badge under each
+  // address input AND gates form submission. Without this, the user could
+  // paste an EOA / non-token contract and only learn at on-chain revert time.
+  const saleTokenInfo = useTokenInfo(saleToken);
+  const payTokenInfo = useTokenInfo(payTokenAddress);
+
+  const isValidSaleToken =
+    saleToken !== "" &&
+    isAddress(saleToken) &&
+    saleTokenInfo.status === "success";
   const isValidPayToken =
     payTokenChoice === "ETH" ||
-    (payTokenAddress !== "" && isAddress(payTokenAddress));
+    (payTokenAddress !== "" &&
+      isAddress(payTokenAddress) &&
+      payTokenInfo.status === "success");
 
   // ---------- Derived schedule state ----------
   const startUnix = startTime ? Math.floor(startTime.getTime() / 1000) : null;
@@ -479,12 +493,16 @@ export function CreateSale() {
               value={saleToken}
               onChange={(e) => setSaleToken(e.target.value)}
               className={
-                saleToken && !isValidSaleToken ? "border-rose-400" : ""
+                saleToken &&
+                (!isAddress(saleToken) || saleTokenInfo.status === "error")
+                  ? "border-rose-400"
+                  : ""
               }
             />
-            {saleToken && !isValidSaleToken && (
+            {saleToken && !isAddress(saleToken) && (
               <FieldHint error>Not a valid Ethereum address.</FieldHint>
             )}
+            <TokenInfoBadge address={saleToken} />
           </div>
 
           <div className="space-y-2">
@@ -525,16 +543,24 @@ export function CreateSale() {
               </ToggleButton>
             </div>
             {!isETH && (
-              <Input
-                placeholder="0x... ERC-20 address"
-                value={payTokenAddress}
-                onChange={(e) => setPayTokenAddress(e.target.value)}
-                className={
-                  payTokenAddress && !isAddress(payTokenAddress)
-                    ? "border-rose-400"
-                    : ""
-                }
-              />
+              <>
+                <Input
+                  placeholder="0x... ERC-20 address"
+                  value={payTokenAddress}
+                  onChange={(e) => setPayTokenAddress(e.target.value)}
+                  className={
+                    payTokenAddress &&
+                    (!isAddress(payTokenAddress) ||
+                      payTokenInfo.status === "error")
+                      ? "border-rose-400"
+                      : ""
+                  }
+                />
+                {payTokenAddress && !isAddress(payTokenAddress) && (
+                  <FieldHint error>Not a valid Ethereum address.</FieldHint>
+                )}
+                <TokenInfoBadge address={payTokenAddress} />
+              </>
             )}
           </div>
 

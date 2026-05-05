@@ -7,7 +7,9 @@ import { getErrorMessage } from "@/lib/constants";
 import { useEnsureSepolia } from "@/lib/network";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
+import { useLiveVesting } from "@/lib/use-live-vesting";
 import { WithdrawButton } from "./WithdrawButton";
+import { VestingProgress } from "./VestingProgress";
 
 type Props = {
   vaultAddress: `0x${string}`;
@@ -16,7 +18,6 @@ type Props = {
   isConnected: boolean;
   currentDeposit: bigint;
   userAllocation: bigint | undefined;
-  userClaimable: bigint | undefined;
   onClaimed: () => Promise<unknown> | unknown;
   onWithdrawn: () => Promise<unknown> | unknown;
   onError: (msg: string) => void;
@@ -31,7 +32,6 @@ export function ClaimPanel({
   isConnected,
   currentDeposit,
   userAllocation,
-  userClaimable,
   onClaimed,
   onWithdrawn,
   onError,
@@ -41,6 +41,14 @@ export function ClaimPanel({
   const { mutateAsync: writeContractAsync } = useWriteContract();
   const ensureSepolia = useEnsureSepolia();
   const [step, setStep] = useState<string | null>(null);
+
+  const { claimable: liveClaimable } = useLiveVesting({
+    vaultAddress,
+    settledAt: sale.settledAt,
+    cliffDuration: sale.cliffDuration,
+    vestingDuration: sale.vestingDuration,
+    allocation: userAllocation ?? 0n,
+  });
 
   const handleClaim = async () => {
     if (!publicClient) return;
@@ -93,20 +101,28 @@ export function ClaimPanel({
         </div>
 
         {isConnected && userAllocation !== undefined && userAllocation > 0n && (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="rounded border border-slate-200 p-3 text-sm">
               <p className="text-slate-500">Your Allocation</p>
               <p className="font-mono font-bold text-lg text-slate-900 mt-1">
                 {fmt.fmtSale(userAllocation)} {fmt.saleLabel}
               </p>
             </div>
-            {userClaimable !== undefined && userClaimable > 0n && (
+            <VestingProgress
+              vaultAddress={vaultAddress}
+              settledAt={sale.settledAt}
+              cliffDuration={sale.cliffDuration}
+              vestingDuration={sale.vestingDuration}
+              allocation={userAllocation}
+              fmt={fmt}
+            />
+            {liveClaimable > 0n && (
               <button
                 onClick={handleClaim}
                 disabled={!!step}
                 className="w-full bg-brand-500 hover:bg-brand-600 disabled:bg-slate-300 text-white py-3 rounded font-semibold transition-colors"
               >
-                {step || `Claim ${fmt.fmtSale(userClaimable)} ${fmt.saleLabel}`}
+                {step || `Claim ${fmt.fmtSale(liveClaimable)} ${fmt.saleLabel}`}
               </button>
             )}
           </div>

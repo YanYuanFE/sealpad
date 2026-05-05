@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { EncryptedTicker } from "@/components/landing/shared/EncryptedTicker";
+import { NarrativeSection } from "@/components/landing/NarrativeSection";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
 import { DutchAuctionSection } from "@/components/landing/DutchAuctionSection";
@@ -16,7 +16,7 @@ export function Landing() {
     <div className="font-sans bg-slate-50 text-slate-900 min-h-screen">
       <Navbar />
       <HeroSection />
-      <EncryptedTicker />
+      <NarrativeSection />
       <FeaturesSection />
       <HowItWorksSection />
       <DutchAuctionSection />

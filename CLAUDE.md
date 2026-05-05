@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Design decisions follow `.impeccable.md` at the repo root.** Read it before any frontend / visual change. It defines the brand tone (Deliberate · Hushed · Institutional), the palette (Saturn orange `#FF5100`, obsidian, white), the 0.69px micro-radii signature, and five overriding principles (Hush over hype · Real numbers not theatre · Whitespace is the product · Earn the orange · Sharp edges over rounded). It overrides "tasteful defaults" — when generic best-practice disagrees, that file wins.
+
 ## Project
 
 **SealPad** — Confidential Token Sale Platform for the Zama Developer Program (Mainnet Season 2, Builder Track). Two-package monorepo (no workspace file): an FHEVM Hardhat project under `contracts/` and a Vite + React frontend under `frontend/`. The full design is in `TECHNICAL_DESIGN.md` (Chinese).

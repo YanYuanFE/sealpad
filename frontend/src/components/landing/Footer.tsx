@@ -14,11 +14,7 @@ const cols = [
   {
     title: "RESOURCES",
     links: [
-      {
-        label: "Documentation",
-        href: "https://github.com/YanYuanFE/sealpad",
-        external: true,
-      },
+      { label: "Documentation", href: "/app/docs" },
       {
         label: "GitHub",
         href: "https://github.com/YanYuanFE/sealpad",
@@ -27,27 +23,12 @@ const cols = [
       { label: "Zama Docs", href: "https://docs.zama.org", external: true },
     ],
   },
-  {
-    title: "PROGRAM",
-    links: [
-      {
-        label: "Zama Developer Hub",
-        href: "https://www.zama.org/developer-hub",
-        external: true,
-      },
-      {
-        label: "Mainnet Season 2",
-        href: "https://www.zama.org/developer-hub",
-        external: true,
-      },
-    ],
-  },
 ];
 
 export function Footer() {
   return (
     <footer className="pt-24 pb-12 px-6 md:px-8 bg-slate-50 border-t border-slate-200">
-      <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-12">
+      <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-12">
         <div>
           <div className="flex items-center gap-2.5 mb-4">
             <LogoMark size={32} />
@@ -55,10 +36,10 @@ export function Footer() {
               SEALPAD
             </span>
           </div>
-          <p className="font-mono text-xs text-slate-500 leading-relaxed">
-            Privacy-first liquidity platform.
+          <p className="text-sm text-slate-500 leading-relaxed max-w-xs">
+            Confidential token sales on FHEVM.
             <br />
-            Powered by Zama FHE.
+            Sealed bids, uniform clearing, no on-chain trace.
           </p>
           <a
             href="https://github.com/YanYuanFE/sealpad"
@@ -75,11 +56,11 @@ export function Footer() {
           <FooterCol key={c.title} title={c.title} links={c.links} />
         ))}
       </div>
-      <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-slate-200 flex flex-wrap justify-between gap-4 font-mono text-xs text-slate-500">
-        <span>© 2026 SEALPAD PROTOCOL // ALL BIDS ENCRYPTED</span>
+      <div className="max-w-7xl mx-auto mt-16 pt-8 border-t border-slate-200 flex flex-wrap justify-between gap-4 font-mono text-[11px] tracking-[0.12em] text-slate-500">
+        <span>© 2026 SealPad</span>
         <div className="flex gap-6 flex-wrap">
-          <span>BUILT FOR ZAMA SEASON 2</span>
-          <span>SEPOLIA TESTNET</span>
+          <span>Built on Zama FHEVM</span>
+          <span>Sepolia</span>
         </div>
       </div>
     </footer>

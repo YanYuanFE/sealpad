@@ -1,137 +1,79 @@
 import { Reveal } from "./shared/Reveal";
-import { ScrambleText } from "./shared/ScrambleText";
+
+const layers = [
+  {
+    n: "01",
+    title: "FHE primitives",
+    desc: "euint64 ciphertexts, FHE.add / FHE.min / FHE.makePubliclyDecryptable. Bid arithmetic happens directly on encrypted operands; the contract never sees plaintext.",
+  },
+  {
+    n: "02",
+    title: "Zama fhEVM coprocessor",
+    desc: "Off-chain coprocessor performs the encrypted computation. ACL-gated handles ensure only the vault and KMS can request decryption.",
+  },
+  {
+    n: "03",
+    title: "KMS threshold decryption",
+    desc: "After finalize(), KMS produces signed cleartext for the handles the protocol declared publicly decryptable. FHE.checkSignatures verifies on-chain before settlement math runs.",
+  },
+  {
+    n: "04",
+    title: "Solidity 0.8.27 · EIP-1167",
+    desc: "Each sale lives in its own minimal-proxy clone. ReentrancyGuard, viaIR, cancun. Storage isolation per vault.",
+  },
+];
 
 export function TechSection() {
   return (
     <section
       id="architecture"
-      className="py-32 px-6 md:px-8 bg-slate-900 text-white relative overflow-hidden"
+      className="bg-white border-t border-slate-200 relative overflow-hidden"
     >
-      <div
-        className="absolute inset-0 opacity-30 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(circle at 80% 50%, rgba(255,81,0,0.25), transparent 60%)",
-        }}
-      />
-
-      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center relative z-10">
-        <Reveal direction="left">
-          <div>
-            <span className="inline-block border border-brand-400 text-brand-300 font-mono text-xs px-3 py-1.5 rounded">
-              TECHNICAL STACK
-            </span>
-            <h2 className="font-display mt-8 text-5xl lg:text-6xl leading-tight">
-              Cipher-Native
-              <br />
-              Infrastructure
-            </h2>
-            <p className="mt-8 text-slate-300 max-w-xl">
-              SealPad operates at the intersection of Zama's fhEVM and
-              Ethereum's security. We use{" "}
-              <span className="text-brand-300 font-medium">
-                "Blind Smart Contracts"
-              </span>{" "}
-              that process logic on hidden states without ever decrypting them.
+      <div className="mx-auto max-w-7xl px-6 md:px-8 py-32 lg:py-40 relative">
+        <div className="lg:grid lg:grid-cols-12 lg:gap-16">
+          <Reveal direction="left" className="lg:col-span-5">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-brand-500 uppercase">
+              Architecture
             </p>
-            <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <TechBox
-                title="Fully Homomorphic Encryption"
-                desc="The 'Holy Grail' of cryptography. Compute without decrypting."
-                delay={0}
-              />
-              <TechBox
-                title="Zama fhEVM"
-                desc="Privacy-first execution layer for the next generation of dApps."
-                delay={100}
-              />
-              <TechBox
-                title="KMS Threshold Decryption"
-                desc="Aggregate values are revealed only after distributed-key signature verification."
-                delay={200}
-              />
-              <TechBox
-                title="Solidity 0.8.27"
-                desc="Cancun EVM, viaIR enabled, ReentrancyGuard hardened."
-                delay={300}
-              />
-            </div>
-          </div>
-        </Reveal>
+            <h2 className="mt-10 text-4xl md:text-5xl lg:text-[3.5rem] leading-[1.05] tracking-tight text-slate-900 font-medium">
+              Four layers.
+              <br />
+              No surprises.
+            </h2>
+            <p className="mt-8 max-w-prose text-lg text-slate-600 leading-relaxed">
+              SealPad sits between Ethereum's settlement and Zama's encrypted
+              compute. Every layer below is auditable on-chain or in published
+              cryptographic specifications.
+            </p>
+          </Reveal>
 
-        <Reveal direction="scale" delay={200}>
-          <div className="relative aspect-square grid place-items-center">
-            {/* concentric rings — outer rings rotate slowly in opposite directions */}
-            <div className="absolute inset-0 rounded-full border border-brand-500/15 animate-[orbit-slow_60s_linear_infinite]" />
-            <div className="absolute inset-8 rounded-full border border-brand-500/25 animate-[orbit-rev_45s_linear_infinite]" />
-            <div className="absolute inset-16 rounded-full border border-brand-500/40 animate-[orbit-slow_30s_linear_infinite]" />
-            <div className="absolute inset-24 rounded-full border border-brand-500/60 animate-[pulse-ring_3s_ease-in-out_infinite]" />
-
-            {/* orbiting dots */}
-            <div className="absolute inset-0 animate-[orbit-slow_18s_linear_infinite]">
-              <span className="absolute top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-brand-400 shadow-md shadow-brand-400/50" />
-            </div>
-            <div className="absolute inset-8 animate-[orbit-rev_22s_linear_infinite]">
-              <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-brand-300" />
-            </div>
-            <div className="absolute inset-16 animate-[orbit-slow_14s_linear_infinite]">
-              <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand-500" />
-            </div>
-
-            {/* core */}
-            <div className="bg-brand-500 text-slate-900 px-6 py-4 rounded-lg font-mono text-sm z-10 shadow-2xl shadow-brand-500/30 animate-[core-pulse_3s_ease-in-out_infinite]">
-              <div className="font-bold tracking-wider">FHE CORE UNIT</div>
-              <div className="text-xs opacity-70 mt-1">
-                [ <ScrambleText text="01011101" mode="live" speed={140} /> ]
-              </div>
-              <div className="text-xs opacity-70">[ ENCRYPTED ]</div>
-            </div>
-          </div>
-        </Reveal>
+          <Reveal
+            direction="right"
+            delay={150}
+            className="lg:col-span-7 mt-16 lg:mt-2"
+          >
+            <ol className="divide-y divide-slate-200 border-y border-slate-200">
+              {layers.map((l) => (
+                <li key={l.n} className="grid grid-cols-12 gap-6 py-7 lg:py-8">
+                  <div className="col-span-2 lg:col-span-1">
+                    <span className="font-mono text-[11px] tracking-[0.18em] text-slate-400 tabular-nums">
+                      {l.n}
+                    </span>
+                  </div>
+                  <div className="col-span-10 lg:col-span-11">
+                    <h3 className="text-base font-medium text-slate-900 tracking-tight">
+                      {l.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-600 leading-relaxed">
+                      {l.desc}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Reveal>
+        </div>
       </div>
-
-      <style>{`
-        @keyframes orbit-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes orbit-rev {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
-        @keyframes pulse-ring {
-          0%, 100% { opacity: 0.4; transform: scale(1); }
-          50% { opacity: 0.8; transform: scale(1.04); }
-        }
-        @keyframes core-pulse {
-          0%, 100% { box-shadow: 0 10px 40px -8px rgba(255, 81, 0, 0.4); }
-          50% { box-shadow: 0 10px 60px 4px rgba(255, 81, 0, 0.55); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          [class*="animate-[orbit"], [class*="animate-[pulse-ring"], [class*="animate-[core-pulse"] {
-            animation: none !important;
-          }
-        }
-      `}</style>
     </section>
-  );
-}
-
-function TechBox({
-  title,
-  desc,
-  delay = 0,
-}: {
-  title: string;
-  desc: string;
-  delay?: number;
-}) {
-  return (
-    <Reveal delay={delay} direction="up">
-      <div className="p-5 bg-slate-800/60 rounded-lg border border-slate-700 backdrop-blur hover:border-brand-500/40 hover:bg-slate-800/80 transition-colors h-full">
-        <h4 className="font-semibold text-brand-300">{title}</h4>
-        <p className="mt-2 text-sm text-slate-400 leading-relaxed">{desc}</p>
-      </div>
-    </Reveal>
   );
 }

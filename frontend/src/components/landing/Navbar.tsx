@@ -51,9 +51,9 @@ export function Navbar() {
         </a>
         <Link
           to="/app"
-          className="font-mono text-xs tracking-widest bg-brand-500 hover:bg-brand-600 text-white px-5 py-2.5 rounded transition-colors"
+          className="text-xs tracking-tight bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 transition-colors font-medium"
         >
-          LAUNCH APP
+          Launch app
         </Link>
       </div>
     </nav>

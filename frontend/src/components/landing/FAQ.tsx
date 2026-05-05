@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: "Can I update my bid after submission?",
-    a: "Yes — and crucially, no funds move when you do. Only the encrypted ciphertext is updated. There is zero on-chain trace of your bid revisions, which is impossible to achieve with a traditional Launchpad.",
+    a: "Yes — and crucially, no funds move when you do. Only the encrypted ciphertext is updated. There is zero on-chain trace of your bid revisions, which is impossible to achieve with a traditional launchpad.",
   },
   {
     q: "What happens if the soft cap is not reached?",
@@ -25,31 +25,34 @@ const faqs = [
   },
   {
     q: "Is SealPad live on mainnet?",
-    a: "Currently deployed on Sepolia testnet only as a Zama Developer Program submission. Mainnet deployment requires further auditing.",
+    a: "Currently deployed on Sepolia testnet only. Mainnet deployment requires further auditing.",
   },
 ];
 
 export function FAQ() {
   const [open, setOpen] = useState<number | null>(0);
   return (
-    <section className="py-32 px-6 md:px-8 bg-white">
-      <div className="max-w-3xl mx-auto">
+    <section className="bg-cloud border-t border-slate-200">
+      <div className="mx-auto max-w-5xl px-6 md:px-8 py-32 lg:py-40">
         <Reveal>
-          <h2 className="font-display text-5xl text-center text-slate-900 mb-4">
-            Queries
-          </h2>
-          <p className="text-center font-mono text-xs tracking-widest text-brand-600 mb-16">
-            FREQUENTLY ASKED
-          </p>
+          <div className="lg:max-w-3xl">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-brand-500 uppercase">
+              Questions
+            </p>
+            <h2 className="mt-10 text-4xl md:text-5xl lg:text-[3.5rem] leading-[1.05] tracking-tight text-slate-900 font-medium">
+              The shortlist.
+            </h2>
+          </div>
         </Reveal>
 
-        <div className="space-y-4">
+        <div className="mt-20 lg:mt-24 border-y border-slate-200">
           {faqs.map((f, i) => (
-            <Reveal key={i} delay={i * 80}>
+            <Reveal key={i} delay={i * 60}>
               <FAQItem
                 q={f.q}
                 a={f.a}
                 isOpen={open === i}
+                isLast={i === faqs.length - 1}
                 onToggle={() => setOpen(open === i ? null : i)}
               />
             </Reveal>
@@ -64,11 +67,13 @@ function FAQItem({
   q,
   a,
   isOpen,
+  isLast,
   onToggle,
 }: {
   q: string;
   a: string;
   isOpen: boolean;
+  isLast: boolean;
   onToggle: () => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -81,24 +86,22 @@ function FAQItem({
 
   return (
     <div
-      className={`border rounded-xl overflow-hidden bg-white transition-colors ${
-        isOpen ? "border-brand-300 shadow-sm" : "border-slate-200"
-      }`}
+      className={`${isLast ? "" : "border-b border-slate-200"} ${
+        isOpen ? "bg-white" : ""
+      } transition-colors`}
     >
       <button
         onClick={onToggle}
-        className="w-full flex justify-between items-center gap-6 p-6 text-left hover:bg-slate-50 transition-colors"
+        className="w-full flex justify-between items-baseline gap-6 py-6 text-left hover:text-brand-600 transition-colors"
       >
-        <span className="font-semibold text-slate-900">{q}</span>
-        <span
-          className={`text-brand-500 shrink-0 transition-transform duration-300 ${
-            isOpen ? "rotate-180" : "rotate-0"
-          }`}
-        >
+        <span className="text-base lg:text-lg font-medium text-slate-900 tracking-tight">
+          {q}
+        </span>
+        <span className="text-slate-400 shrink-0 self-center">
           {isOpen ? (
-            <Minus size={20} weight="bold" />
+            <Minus size={16} weight="bold" />
           ) : (
-            <Plus size={20} weight="bold" />
+            <Plus size={16} weight="bold" />
           )}
         </span>
       </button>
@@ -108,7 +111,7 @@ function FAQItem({
       >
         <div
           ref={contentRef}
-          className="px-6 pb-6 text-slate-600 leading-relaxed"
+          className="pb-6 max-w-prose text-sm text-slate-600 leading-relaxed"
         >
           {a}
         </div>

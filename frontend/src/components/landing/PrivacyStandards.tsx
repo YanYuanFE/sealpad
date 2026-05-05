@@ -1,53 +1,57 @@
 import { Reveal } from "./shared/Reveal";
 
-const standards: [string, string, string][] = [
-  ["Bid Confidentiality", "None (Public)", "Full Encryption"],
-  ["Front-running Protection", "Vulnerable", "Guaranteed"],
-  ["MEV Resistance", "Optional / Costly", "Native Protocol"],
-  ["Price Discovery", "Manipulated", "Pure Demand"],
-  ["Re-bid Without Trace", "Impossible", "Ciphertext-only Update"],
+const rows: [string, string, string][] = [
+  ["Bid amounts", "Public from block 0", "FHE-encrypted (euint64)"],
+  ["Volume signal", "Visible to MEV bots", "Aggregate stays encrypted"],
+  ["Re-bid privacy", "Every revision visible", "No on-chain trace"],
+  ["Clearing mechanism", "Pre-set by issuer", "Demand-driven, uniform"],
+  ["Front-running", "Same-block exposed", "Ciphertext is opaque"],
 ];
 
 export function PrivacyStandards() {
   return (
-    <section className="py-32 px-6 md:px-8 relative bg-cloud">
-      <div className="max-w-5xl mx-auto">
+    <section className="bg-cloud border-t border-slate-200">
+      <div className="mx-auto max-w-5xl px-6 md:px-8 py-32 lg:py-40">
         <Reveal>
-          <h2 className="font-display text-5xl text-center text-slate-900 mb-4">
-            Privacy Standards
-          </h2>
-          <p className="text-center font-mono text-xs tracking-widest text-brand-600 mb-16">
-            FEATURE PARITY MATRIX
-          </p>
+          <div className="lg:max-w-3xl">
+            <p className="font-mono text-[11px] tracking-[0.18em] text-brand-500 uppercase">
+              Side by side
+            </p>
+            <h2 className="mt-10 text-4xl md:text-5xl lg:text-[3.5rem] leading-[1.05] tracking-tight text-slate-900 font-medium">
+              How SealPad differs
+              <br />
+              from a public sale.
+            </h2>
+          </div>
         </Reveal>
 
-        <Reveal direction="scale" delay={150}>
-          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-            <div className="grid grid-cols-3 px-6 md:px-8 py-5 font-mono text-xs tracking-widest text-slate-500 border-b border-slate-200 bg-slate-50">
-              <span>FEATURE</span>
-              <span>STANDARD IDO</span>
-              <span>SEALPAD (FHE)</span>
+        <Reveal delay={150}>
+          <div className="mt-20 lg:mt-24 border-y border-slate-200">
+            <div className="grid grid-cols-12 gap-4 py-5 font-mono text-[10px] tracking-[0.18em] text-slate-400 uppercase">
+              <span className="col-span-4 lg:col-span-3" />
+              <span className="col-span-4 lg:col-span-5">Public sale</span>
+              <span className="col-span-4 lg:col-span-4 text-brand-500">
+                SealPad
+              </span>
             </div>
-            {standards.map(([f, std, sp], i) => (
-              <Reveal key={f} delay={i * 80} direction="left">
+            <div className="divide-y divide-slate-200 border-t border-slate-200">
+              {rows.map(([label, std, sp]) => (
                 <div
-                  className={`grid grid-cols-3 px-6 md:px-8 py-6 items-center text-sm md:text-base ${
-                    i < standards.length - 1 ? "border-b border-slate-100" : ""
-                  } hover:bg-slate-50/60 transition-colors`}
+                  key={label}
+                  className="grid grid-cols-12 gap-4 py-7 items-baseline"
                 >
-                  <span className="font-semibold text-slate-900">{f}</span>
-                  <span className="text-rose-500 line-through decoration-rose-300">
+                  <span className="col-span-4 lg:col-span-3 text-sm text-slate-500">
+                    {label}
+                  </span>
+                  <span className="col-span-4 lg:col-span-5 text-sm text-slate-500">
                     {std}
                   </span>
-                  <span className="text-brand-600 font-medium inline-flex items-center gap-2">
-                    <span className="w-5 h-5 rounded-full bg-brand-500 text-white grid place-items-center text-xs">
-                      ✓
-                    </span>
+                  <span className="col-span-4 lg:col-span-4 text-sm text-slate-900 font-medium">
                     {sp}
                   </span>
                 </div>
-              </Reveal>
-            ))}
+              ))}
+            </div>
           </div>
         </Reveal>
       </div>

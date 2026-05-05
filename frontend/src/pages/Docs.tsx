@@ -11,17 +11,19 @@ import {
   ShieldCheck,
   Sparkle,
   GearSix,
+  Clock,
 } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyAddress } from "@/components/CopyAddress";
 import { SEALPAD_FACTORY_ADDRESS } from "@/config/contracts";
-import { REQUIRED_CHAIN_ID, REQUIRED_CHAIN_LABEL } from "@/lib/network";
+import { REQUIRED_CHAIN_LABEL } from "@/lib/network";
 
 const sections = [
   { id: "overview", label: "Overview" },
   { id: "lifecycle", label: "Lifecycle" },
   { id: "sale-types", label: "Sale Types" },
+  { id: "allocation", label: "Allocation & Vesting" },
   { id: "privacy", label: "Privacy" },
   { id: "participants", label: "Participants" },
   { id: "creators", label: "Creators" },
@@ -86,7 +88,7 @@ export function Docs() {
             variant="outline"
             className="font-mono text-[10px] tracking-widest uppercase"
           >
-            {REQUIRED_CHAIN_LABEL} · {REQUIRED_CHAIN_ID}
+            {REQUIRED_CHAIN_LABEL}
           </Badge>
           <CopyAddress address={SEALPAD_FACTORY_ADDRESS} truncate={false} />
         </div>
@@ -191,9 +193,11 @@ export function Docs() {
                 contributions or bids.
               </li>
               <li>
-                <strong>Finalizing</strong> — anyone calls <Code>finalize</Code>{" "}
-                after <Code>endTime</Code>. The contract publishes ciphertexts
-                for KMS to decrypt.
+                <strong>Finalizing</strong> — anyone calls{" "}
+                <Code>requestFinalize</Code> after <Code>endTime</Code>; once
+                the reorg-safety window (<Code>FINALIZE_REORG_DELAY</Code> = 95
+                blocks) has passed, anyone calls <Code>finalize</Code>, which
+                publishes ciphertexts for KMS to decrypt.
               </li>
               <li>
                 <strong>Settled</strong> — anyone submits the decrypted values
@@ -279,10 +283,137 @@ export function Docs() {
             </div>
           </DocsSection>
 
+          {/* Allocation & Vesting */}
+          <DocsSection
+            id="allocation"
+            eyebrow="04 — ALLOCATION & VESTING"
+            icon={
+              <Clock size={18} weight="duotone" className="text-brand-500" />
+            }
+            title="Settlement outputs and release schedule"
+          >
+            <p>
+              After settlement, <Code>allocations[user]</Code> is written
+              on-chain and immutable. Tokens release over time according to the
+              sale's vesting schedule and are pulled via <Code>claim()</Code>.
+              Any deposit not converted into allocation stays withdrawable via{" "}
+              <Code>withdrawDeposit()</Code>.
+            </p>
+
+            <Callout title="Fixed-price overflow scaling">
+              <p className="mb-2 text-slate-700">
+                When totalContributed &gt; hardCap, every contribution is scaled
+                down pro-rata:
+              </p>
+              <pre className="font-mono text-xs whitespace-pre-wrap leading-relaxed text-slate-700">{`scale                  = hardCap / totalContributed
+effective_contribution = contribution × scale
+tokens                 = effective_contribution / price
+refund (→ deposit)     = contribution − effective_contribution`}</pre>
+              <p className="mt-3 text-xs text-slate-600 leading-relaxed">
+                Example. hardCap = 1 USDC, price = 0.001 USDC/token, supply =
+                1000 tokens. A contributes 1 USDC, B contributes 0.1 USDC.
+                totalContributed = 1.1 USDC, scale ≈ 0.909. A gets{" "}
+                <strong>909 tokens + 0.091 USDC refund</strong>; B gets{" "}
+                <strong>91 tokens + 0.009 USDC refund</strong>. Total raise
+                lands exactly on hardCap; total tokens distributed = saleAmount.
+              </p>
+            </Callout>
+
+            <p className="pt-1">
+              For Dutch auctions, only bids ≥ the uniform clearing price are
+              filled. Bidders at exactly the clearing price share the remaining
+              tokens pro-rata. Higher bids pay the same clearing price — the
+              difference stays in their deposit.
+            </p>
+
+            <Callout title="Vesting (mirrors SaleVault._vestedAmount)">
+              <pre className="font-mono text-xs whitespace-pre-wrap leading-relaxed text-slate-700">{`cliffEnd = settledAt + cliffDuration
+vestEnd  = cliffEnd   + vestingDuration
+
+cliffDuration == 0 && vestingDuration == 0  →  vested = allocation
+now < cliffEnd                              →  vested = 0
+now >= vestEnd                              →  vested = allocation
+else                                        →  vested = allocation × (now − cliffEnd) / vestingDuration`}</pre>
+            </Callout>
+
+            <p>
+              <Code>claim()</Code> transfers <Code>vested − tokensClaimed</Code>{" "}
+              and bumps <Code>tokensClaimed</Code>. Pull-based — call as often
+              or as rarely as you like; the contract pays out only the delta.
+              There is no schedule on the contract side, so the user controls
+              cadence.
+            </p>
+
+            <div className="overflow-x-auto rounded border border-slate-200 mt-2">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="text-left font-mono text-[10px] tracking-widest text-slate-500 uppercase px-3 py-2">
+                      cliff
+                    </th>
+                    <th className="text-left font-mono text-[10px] tracking-widest text-slate-500 uppercase px-3 py-2">
+                      vesting
+                    </th>
+                    <th className="text-left font-mono text-[10px] tracking-widest text-slate-500 uppercase px-3 py-2">
+                      Behavior
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  <tr>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        0
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        0
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600">
+                      Instant — full allocation claimable on settle.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        0
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        7d
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600">
+                      Linear release over 7 days from settle.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        30d
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                      <code className="font-mono text-xs text-slate-900">
+                        180d
+                      </code>
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-600">
+                      30-day cliff, then 6-month linear release.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </DocsSection>
+
           {/* Privacy */}
           <DocsSection
             id="privacy"
-            eyebrow="04 — PRIVACY PRIMITIVE"
+            eyebrow="05 — PRIVACY PRIMITIVE"
             icon={
               <ShieldCheck
                 size={18}
@@ -320,7 +451,7 @@ export function Docs() {
           {/* Participants */}
           <DocsSection
             id="participants"
-            eyebrow="05 — FOR PARTICIPANTS"
+            eyebrow="06 — FOR PARTICIPANTS"
             icon={
               <Wallet size={18} weight="duotone" className="text-brand-500" />
             }
@@ -328,9 +459,8 @@ export function Docs() {
           >
             <div className="space-y-3">
               <Step n={1} title="Connect on Sepolia">
-                SealPad runs on {REQUIRED_CHAIN_LABEL} only. Make sure your
-                wallet is on chain {REQUIRED_CHAIN_ID}; the app will warn you
-                otherwise.
+                SealPad runs on {REQUIRED_CHAIN_LABEL} only. The app warns you
+                if your wallet is on a different network.
               </Step>
               <Step n={2} title="Add a deposit">
                 On a sale page, send pay-token (ETH or ERC-20) via{" "}
@@ -344,9 +474,11 @@ export function Docs() {
                 (Dutch). Updating later moves no tokens.
               </Step>
               <Step n={4} title="Wait for finalize + settle">
-                After <Code>endTime</Code>, anyone can call{" "}
-                <Code>finalize</Code>. Once KMS produces the decryption proof,
-                anyone submits it via <Code>settleFixed</Code> or{" "}
+                After <Code>endTime</Code>, anyone calls{" "}
+                <Code>requestFinalize</Code>; once the 95-block reorg-safety
+                window passes, anyone calls <Code>finalize</Code> to publish the
+                ciphertexts. Once KMS produces the decryption proof, anyone
+                submits it via <Code>settleFixed</Code> or{" "}
                 <Code>settleDutch</Code>.
               </Step>
               <Step n={5} title="Claim & withdraw leftover deposit">
@@ -367,7 +499,7 @@ export function Docs() {
           {/* Creators */}
           <DocsSection
             id="creators"
-            eyebrow="06 — FOR CREATORS"
+            eyebrow="07 — FOR CREATORS"
             icon={
               <Sparkle size={18} weight="duotone" className="text-brand-500" />
             }
@@ -445,7 +577,7 @@ export function Docs() {
           {/* Developers */}
           <DocsSection
             id="developers"
-            eyebrow="07 — FOR DEVELOPERS"
+            eyebrow="08 — FOR DEVELOPERS"
             icon={
               <Article size={18} weight="duotone" className="text-brand-500" />
             }
@@ -464,7 +596,10 @@ export function Docs() {
               is not imported.
             </p>
             <Callout title="FHE settlement flow (per vault)">
-              <pre className="font-mono text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{`vault.finalize()
+              <pre className="font-mono text-xs text-slate-700 whitespace-pre-wrap leading-relaxed">{`vault.requestFinalize()
+  → emits FinalizeRequested(blockNumber)
+wait FINALIZE_REORG_DELAY (95 blocks)
+vault.finalize()
   → marks ciphertexts publicly decryptable
   → emits SaleFinalizing
 off-chain: KMS decrypts handles, produces proof
@@ -475,10 +610,7 @@ vault.settleFixed(decryptedValues, proof)
   → returns unsold tokens to creator`}</pre>
             </Callout>
             <div className="grid md:grid-cols-2 gap-4">
-              <KeyValue
-                label="Network"
-                value={`${REQUIRED_CHAIN_LABEL} (chain ${REQUIRED_CHAIN_ID})`}
-              />
+              <KeyValue label="Network" value={REQUIRED_CHAIN_LABEL} />
               <KeyValue
                 label="Factory"
                 value={
@@ -503,7 +635,7 @@ vault.settleFixed(decryptedValues, proof)
           {/* Limits */}
           <DocsSection
             id="limits"
-            eyebrow="08 — CONSTANTS & LIMITS"
+            eyebrow="09 — CONSTANTS & LIMITS"
             icon={
               <Hash size={18} weight="duotone" className="text-brand-500" />
             }
@@ -511,6 +643,10 @@ vault.settleFixed(decryptedValues, proof)
           >
             <div className="grid md:grid-cols-3 gap-4">
               <KeyValue label="MAX_PARTICIPANTS" value="50" />
+              <KeyValue
+                label="FINALIZE_REORG_DELAY"
+                value="95 blocks (~19 min)"
+              />
               <KeyValue
                 label="Sale-token scale"
                 value="10**decimals(), per sale"
