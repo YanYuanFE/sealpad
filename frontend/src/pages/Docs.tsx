@@ -666,13 +666,6 @@ vault.settleFixed(decryptedValues, proof)
               <KeyValue label="Vesting" value="Cliff + linear, both optional" />
             </div>
           </DocsSection>
-
-          <div className="pt-4 border-t border-slate-200">
-            <p className="text-xs text-slate-500">
-              Deeper detail lives in <Code>TECHNICAL_DESIGN.md</Code> and{" "}
-              <Code>CLAUDE.md</Code> at the repo root.
-            </p>
-          </div>
         </div>
       </div>
     </div>
