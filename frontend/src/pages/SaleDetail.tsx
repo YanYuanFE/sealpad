@@ -18,12 +18,14 @@ import { useSaleFormatters } from "@/lib/sale-formatters";
 import { DepositPanel } from "@/components/sale/DepositPanel";
 import { ContributePanel } from "@/components/sale/ContributePanel";
 import { FinalizeBanner } from "@/components/sale/FinalizeBanner";
+import { NotEligibleCard } from "@/components/sale/NotEligibleCard";
 import { NotStartedBanner } from "@/components/sale/NotStartedBanner";
 import { SettleBanner } from "@/components/sale/SettleBanner";
 import { ClaimPanel } from "@/components/sale/ClaimPanel";
 import { WithdrawButton } from "@/components/sale/WithdrawButton";
 import { ParticipantsList } from "@/components/sale/ParticipantsList";
 import { useParticipantAddresses } from "@/lib/use-participant-addresses";
+import { useWhitelistEligibility } from "@/lib/use-whitelist-eligibility";
 
 export function SaleDetail() {
   const { address: vaultParam } = useParams<{ address: string }>();
@@ -99,6 +101,17 @@ export function SaleDetail() {
     sale?.participantCount ?? 0,
   );
 
+  // Whitelist eligibility — when not eligible we hide the Deposit/Contribute
+  // panels entirely and show a single NotEligibleCard instead. Hook must run
+  // unconditionally; it no-ops when sale isn't whitelisted (root == 0).
+  const eligibility = useWhitelistEligibility({
+    vaultAddress,
+    whitelistRoot:
+      sale?.whitelistRoot ??
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+    userAddress: address,
+  });
+
   // The settle path needs to read every encrypted handle, then ask the parent
   // to refresh sale state on success. Same pattern for finalize, claim, deposit.
   const handleSettleError = (msg: string) => setError(msg || null);
@@ -145,6 +158,8 @@ export function SaleDetail() {
   const isEnded = now >= Number(sale.endTime);
   const currentDeposit = userDeposit ?? 0n;
   const isDutch = sale.saleType === 1;
+
+  const blockedByWhitelist = eligibility.status === "not_eligible";
 
   const statusVariant: "default" | "secondary" | "destructive" =
     sale.status === 2
@@ -288,27 +303,34 @@ export function SaleDetail() {
         <NotStartedBanner startTime={sale.startTime} />
       )}
 
-      {sale.status === 0 && isStarted && !isEnded && isConnected && (
-        <>
-          <DepositPanel
-            vaultAddress={vaultAddress}
-            sale={sale}
-            fmt={fmt}
-            currentDeposit={currentDeposit}
-            onDeposited={refetchDeposit}
-            onError={handleSettleError}
-          />
-          <ContributePanel
-            vaultAddress={vaultAddress}
-            sale={sale}
-            fmt={fmt}
-            currentDeposit={currentDeposit}
-            hasJoined={!!hasJoined}
-            onSubmitted={refreshAll}
-            onError={handleSettleError}
-          />
-        </>
-      )}
+      {sale.status === 0 &&
+        isStarted &&
+        !isEnded &&
+        isConnected &&
+        (blockedByWhitelist ? (
+          <NotEligibleCard userAddress={address} />
+        ) : (
+          <>
+            <DepositPanel
+              vaultAddress={vaultAddress}
+              sale={sale}
+              fmt={fmt}
+              currentDeposit={currentDeposit}
+              onDeposited={refetchDeposit}
+              onError={handleSettleError}
+            />
+            <ContributePanel
+              vaultAddress={vaultAddress}
+              sale={sale}
+              fmt={fmt}
+              currentDeposit={currentDeposit}
+              hasJoined={!!hasJoined}
+              eligibility={eligibility}
+              onSubmitted={refreshAll}
+              onError={handleSettleError}
+            />
+          </>
+        ))}
 
       {sale.status === 0 && isEnded && (
         <FinalizeBanner

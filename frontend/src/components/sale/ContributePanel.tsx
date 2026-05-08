@@ -1,21 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { getAddress, type Hex } from "viem";
+import { useMemo, useState } from "react";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Warning, XCircle } from "@phosphor-icons/react";
+import { CheckCircle, Lock, Warning } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SALE_VAULT_ABI } from "@/config/contracts";
 import { getErrorMessage } from "@/lib/constants";
-import {
-  buildMerkleTree,
-  getProofForAddress,
-  isEmptyRoot,
-  tryParseProofJson,
-} from "@/lib/merkle";
+import { isEmptyRoot, tryParseProofJson } from "@/lib/merkle";
 import { useEnsureSepolia } from "@/lib/network";
-import { fetchWhitelist } from "@/lib/whitelist-api";
+import type { WhitelistEligibility } from "@/lib/use-whitelist-eligibility";
 import type { SaleData } from "@/lib/sale-types";
 import type { SaleFormatters } from "@/lib/sale-formatters";
 
@@ -25,6 +19,7 @@ type Props = {
   fmt: SaleFormatters;
   currentDeposit: bigint;
   hasJoined: boolean;
+  eligibility: WhitelistEligibility;
   onSubmitted: () => Promise<unknown> | unknown;
   onError: (msg: string) => void;
 };
@@ -35,6 +30,7 @@ export function ContributePanel({
   fmt,
   currentDeposit,
   hasJoined,
+  eligibility,
   onSubmitted,
   onError,
 }: Props) {
@@ -52,75 +48,7 @@ export function ContributePanel({
   const floorPriceFormatted = fmt.fmtPay(sale.price);
 
   const isWhitelisted = !isEmptyRoot(sale.whitelistRoot);
-
-  // Auto-fetched whitelist eligibility. Statuses:
-  //   loading   — request in-flight
-  //   eligible  — user is on the list, autoProof is filled
-  //   not_eligible — user is not on the list (computed root matched on-chain)
-  //   missing   — backend has no entry for this (vault, root); fall back to
-  //               manual proof paste
-  //   corrupt   — backend returned data, but its computed root doesn't match
-  //               the on-chain root (poisoned or stale). Fall back to manual.
-  type WhitelistStatus =
-    | "idle"
-    | "loading"
-    | "eligible"
-    | "not_eligible"
-    | "missing"
-    | "corrupt";
-  const [whitelistStatus, setWhitelistStatus] =
-    useState<WhitelistStatus>("idle");
-  const [autoProof, setAutoProof] = useState<Hex[] | null>(null);
-
-  useEffect(() => {
-    if (!isWhitelisted || !address) {
-      setWhitelistStatus("idle");
-      setAutoProof(null);
-      return;
-    }
-    let cancelled = false;
-    setWhitelistStatus("loading");
-    setAutoProof(null);
-
-    (async () => {
-      try {
-        const data = await fetchWhitelist(
-          vaultAddress,
-          sale.whitelistRoot as Hex,
-        );
-        if (cancelled) return;
-        if (!data) {
-          setWhitelistStatus("missing");
-          return;
-        }
-        // Validate: re-compute the Merkle root from the returned addresses and
-        // compare to the on-chain root. Anyone can POST to the API, so we
-        // trust nothing it returns until this check passes.
-        const checksummed = data.addresses.map((a) => getAddress(a));
-        const recomputed = buildMerkleTree(checksummed);
-        if (
-          recomputed.root.toLowerCase() !== sale.whitelistRoot.toLowerCase()
-        ) {
-          setWhitelistStatus("corrupt");
-          return;
-        }
-        const proof = getProofForAddress(checksummed, address);
-        if (cancelled) return;
-        if (proof === null) {
-          setWhitelistStatus("not_eligible");
-        } else {
-          setAutoProof(proof);
-          setWhitelistStatus("eligible");
-        }
-      } catch {
-        if (!cancelled) setWhitelistStatus("missing");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isWhitelisted, address, vaultAddress, sale.whitelistRoot]);
+  const { status: whitelistStatus, autoProof } = eligibility;
 
   // Allow manual paste only when auto-fetch couldn't help.
   const allowManualProof =
@@ -292,11 +220,6 @@ export function ContributePanel({
                   <CheckCircle size={14} weight="fill" /> Eligible
                 </span>
               )}
-              {whitelistStatus === "not_eligible" && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-rose-700">
-                  <XCircle size={14} weight="fill" /> Not eligible
-                </span>
-              )}
               {(whitelistStatus === "missing" ||
                 whitelistStatus === "corrupt") && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
@@ -310,14 +233,6 @@ export function ContributePanel({
                 Your wallet is on the whitelist. Proof was generated locally
                 from the published address list and will be sent with your
                 submission.
-              </p>
-            )}
-
-            {whitelistStatus === "not_eligible" && (
-              <p className="text-xs text-rose-600">
-                {address?.slice(0, 6)}…{address?.slice(-4)} is not on this
-                sale&apos;s whitelist. Switch wallets or contact the sale
-                creator.
               </p>
             )}
 
