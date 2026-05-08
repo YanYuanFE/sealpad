@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="SealPad — Confidential token sales on Zama FHEVM">
+  <rect width="1280" height="320" fill="#FCFCFC"/>
+
+  <!-- Top frame -->
+  <line x1="80" y1="56" x2="1200" y2="56" stroke="#181818" stroke-width="1"/>
+  <text x="80" y="42" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" fill="#181818" letter-spacing="2.6">SEALED GEOMETRY  /  SPECIMEN N° 001</text>
+  <text x="1200" y="42" text-anchor="end" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" fill="#181818" letter-spacing="2.6">MMXXVI  /  SEALPAD</text>
+
+  <!-- Side frame ticks (left margin) -->
+  <text x="44" y="116" font-family="JetBrains Mono, ui-monospace, monospace" font-size="10" fill="#9A9A9A" letter-spacing="1.4">01</text>
+  <text x="44" y="262" font-family="JetBrains Mono, ui-monospace, monospace" font-size="10" fill="#9A9A9A" letter-spacing="1.4">02</text>
+
+  <!-- Seal mark (cipher block) -->
+  <g transform="translate(96, 100)">
+    <rect width="120" height="120" rx="2.6" ry="2.6" fill="#181818"/>
+    <rect x="27" y="27" width="66" height="66" rx="1.5" ry="1.5" fill="#FCFCFC"/>
+    <rect x="49" y="49" width="22" height="22" rx="0.5" ry="0.5" fill="#FF5100"/>
+  </g>
+
+  <!-- Wordmark + tagline -->
+  <text x="248" y="186" font-family="Inter, 'Work Sans', system-ui, sans-serif" font-weight="800" font-size="92" letter-spacing="-2.4" fill="#181818">SEALPAD</text>
+  <text x="252" y="222" font-family="JetBrains Mono, ui-monospace, monospace" font-size="13" fill="#181818" letter-spacing="1.6">CONFIDENTIAL TOKEN SALES  ·  ZAMA FHEVM  ·  ETHEREUM</text>
+
+  <!-- Bottom frame -->
+  <line x1="80" y1="264" x2="1200" y2="264" stroke="#181818" stroke-width="1"/>
+  <text x="80" y="288" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" fill="#181818" letter-spacing="2.6">— CONFIDENTIAL BIDS  ·  CIPHERED ON-CHAIN  ·  SEALED FOR DELIVERY</text>
+  <text x="1200" y="288" text-anchor="end" font-family="JetBrains Mono, ui-monospace, monospace" font-size="11" fill="#181818" letter-spacing="2.6">PRESSED ONCE.  NEVER UNDONE.</text>
+</svg>

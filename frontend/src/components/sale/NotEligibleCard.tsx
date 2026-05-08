@@ -26,9 +26,9 @@ export function NotEligibleCard({ userAddress }: Props) {
               {short} is not on this sale&apos;s whitelist.
             </h2>
             <p className="text-sm text-slate-600">
-              This sale is restricted to addresses pre-approved by the
-              creator. Switch to a whitelisted wallet, or contact the creator
-              to be added.
+              This sale is restricted to addresses pre-approved by the creator.
+              Switch to a whitelisted wallet, or contact the creator to be
+              added.
             </p>
           </div>
         </div>

@@ -89,9 +89,7 @@ export function ContributePanel({
     isWhitelisted &&
     !(
       whitelistStatus === "eligible" ||
-      (allowManualProof &&
-        parsedProof !== null &&
-        parsedProof.length > 0)
+      (allowManualProof && parsedProof !== null && parsedProof.length > 0)
     );
 
   const disabled =
@@ -138,7 +136,7 @@ export function ContributePanel({
       // Prefer auto-fetched proof; fall back to manually-pasted proof when
       // the backend couldn't help. For non-whitelisted sales, send [].
       const merkleProof: `0x${string}`[] = isWhitelisted
-        ? autoProof ?? parsedProof ?? []
+        ? (autoProof ?? parsedProof ?? [])
         : [];
 
       if (isDutch) {
@@ -258,14 +256,13 @@ export function ContributePanel({
                 />
                 {proofInvalid && (
                   <p className="text-xs text-rose-600">
-                    Couldn&apos;t parse a proof for your address from this
-                    JSON.
+                    Couldn&apos;t parse a proof for your address from this JSON.
                   </p>
                 )}
                 {!proofInvalid && parsedProof && parsedProof.length > 0 && (
                   <p className="text-xs text-slate-500">
-                    Proof loaded ({parsedProof.length}{" "}
-                    node{parsedProof.length === 1 ? "" : "s"}).
+                    Proof loaded ({parsedProof.length} node
+                    {parsedProof.length === 1 ? "" : "s"}).
                   </p>
                 )}
               </>

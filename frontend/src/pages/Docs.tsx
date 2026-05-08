@@ -27,6 +27,7 @@ const sections = [
   { id: "privacy", label: "Privacy" },
   { id: "participants", label: "Participants" },
   { id: "creators", label: "Creators" },
+  { id: "whitelists", label: "Whitelists" },
   { id: "developers", label: "Developers" },
   { id: "limits", label: "Limits" },
 ];
@@ -574,10 +575,101 @@ else                                        →  vested = allocation × (now −
             </div>
           </DocsSection>
 
+          {/* Whitelists */}
+          <DocsSection
+            id="whitelists"
+            eyebrow="08 — WHITELISTS"
+            icon={
+              <ShieldCheck
+                size={18}
+                weight="duotone"
+                className="text-brand-500"
+              />
+            }
+            title="Gating sales by Merkle proof"
+          >
+            <p>
+              A sale can be restricted to a fixed list of wallets via an
+              OpenZeppelin-compatible Merkle whitelist. The contract stores only
+              the 32-byte root; the address list lives off-chain. Leaving the
+              toggle off (or passing <Code>bytes32(0)</Code> for{" "}
+              <Code>whitelistRoot</Code>) makes the sale fully open.
+            </p>
+            <div className="bg-slate-50 border border-slate-200 px-4 py-3 font-mono text-xs text-slate-700 overflow-x-auto">
+              <div>leaf = keccak256(abi.encodePacked(user))</div>
+              <div>node = keccak256(sorted(left, right))</div>
+              <div>root = on-chain in SaleVault.whitelistRoot</div>
+            </div>
+
+            <h4 className="font-semibold text-slate-900 pt-2">For creators</h4>
+            <div className="space-y-3">
+              <Step n={1} title="Toggle Whitelist on the Create form">
+                Paste a list of allowed addresses (one per line; commas / spaces
+                / semicolons also accepted). Duplicates and invalid entries are
+                filtered automatically. The frontend uses{" "}
+                <Code>@openzeppelin/merkle-tree</Code> to compute the root
+                locally.
+              </Step>
+              <Step n={2} title="Sale is created with the root">
+                <Code>createSale</Code> stores only the root on-chain — gas cost
+                is one extra <Code>SSTORE</Code>, regardless of list size.
+              </Step>
+              <Step n={3} title="Address list is published to the backend">
+                Right after the on-chain transaction confirms, the frontend
+                POSTs the address list to a Vercel KV store keyed by{" "}
+                <Code>(vault, root)</Code>. If the request fails, a JSON bundle
+                of pre-computed proofs is downloaded as a fallback so you can
+                re-publish or hand proofs out manually.
+              </Step>
+            </div>
+
+            <h4 className="font-semibold text-slate-900 pt-2">
+              For participants
+            </h4>
+            <div className="space-y-3">
+              <Step n={1} title="Eligibility is checked automatically">
+                When you open a whitelisted sale, the app fetches the published
+                address list from the backend and re-derives the Merkle root
+                locally. If it doesn&apos;t match the on-chain root, the data is
+                treated as corrupt and ignored.
+              </Step>
+              <Step n={2} title="Eligible → proof generated locally">
+                Your wallet&apos;s proof is computed in your browser. The{" "}
+                <strong>WHITELIST</strong> badge on the contribute panel shows{" "}
+                <span className="text-emerald-700 font-medium">Eligible</span>{" "}
+                and the proof rides along with your contribute / bid call.
+              </Step>
+              <Step n={3} title="Not on the list → blocked">
+                The Deposit and Contribute panels disappear and a single
+                &ldquo;not eligible&rdquo; card is shown. Switch wallets or ask
+                the creator to add you to the next sale.
+              </Step>
+              <Step n={4} title="Backend down or stale → manual paste fallback">
+                If we can&apos;t fetch a list whose root matches on-chain,
+                you&apos;ll see a manual paste box where you can drop in a proof
+                JSON the creator hands you out-of-band. This is the same path
+                the on-chain check uses, so nothing about the privacy or
+                settlement story changes.
+              </Step>
+            </div>
+
+            <h4 className="font-semibold text-slate-900 pt-2">Trust model</h4>
+            <p>
+              Anyone can write to the published-list backend, but the frontend
+              trusts nothing it returns until the recomputed root matches the
+              on-chain <Code>whitelistRoot</Code>. Forging a list that produces
+              the same root reduces to a 256-bit hash collision, which is
+              computationally infeasible. The backend is therefore a convenience
+              layer, not a security boundary —{" "}
+              <Code>SaleVault._checkWhitelist</Code> is the only thing that
+              gates a contribution on-chain.
+            </p>
+          </DocsSection>
+
           {/* Developers */}
           <DocsSection
             id="developers"
-            eyebrow="08 — FOR DEVELOPERS"
+            eyebrow="09 — FOR DEVELOPERS"
             icon={
               <Article size={18} weight="duotone" className="text-brand-500" />
             }
@@ -635,7 +727,7 @@ vault.settleFixed(decryptedValues, proof)
           {/* Limits */}
           <DocsSection
             id="limits"
-            eyebrow="09 — CONSTANTS & LIMITS"
+            eyebrow="10 — CONSTANTS & LIMITS"
             icon={
               <Hash size={18} weight="duotone" className="text-brand-500" />
             }

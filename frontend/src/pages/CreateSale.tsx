@@ -25,11 +25,7 @@ import {
   SEALPAD_FACTORY_ADDRESS,
 } from "@/config/contracts";
 import { ZERO_ADDRESS, getErrorMessage } from "@/lib/constants";
-import {
-  EMPTY_ROOT,
-  buildMerkleTree,
-  parseAddressList,
-} from "@/lib/merkle";
+import { EMPTY_ROOT, buildMerkleTree, parseAddressList } from "@/lib/merkle";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
 import { useTokenInfo } from "@/lib/use-token-info";
 import { TokenInfoBadge } from "@/components/TokenInfoBadge";
@@ -922,10 +918,10 @@ export function CreateSale() {
                   style={{ borderRadius: "0.69px" }}
                 />
                 <FieldHint>
-                  We compute the Merkle root locally. After the sale is
-                  created, the address list is published so whitelisted
-                  participants can auto-fetch their proof when they visit the
-                  sale page. Nothing leaks — only the root is on-chain.
+                  We compute the Merkle root locally. After the sale is created,
+                  the address list is published so whitelisted participants can
+                  auto-fetch their proof when they visit the sale page. Nothing
+                  leaks — only the root is on-chain.
                 </FieldHint>
               </div>
 
@@ -967,9 +963,7 @@ export function CreateSale() {
                 whitelistParse !== null &&
                 whitelistParse.addresses.length === 0 &&
                 whitelistParse.invalid.length === 0 && (
-                  <FieldHint error>
-                    No valid addresses parsed.
-                  </FieldHint>
+                  <FieldHint error>No valid addresses parsed.</FieldHint>
                 )}
             </>
           )}

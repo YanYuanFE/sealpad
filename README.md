@@ -1,13 +1,17 @@
-# SealPad
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/banner-dark.svg">
+    <img src=".github/banner-light.svg" alt="SealPad — Confidential token sales on Zama FHEVM" width="100%">
+  </picture>
+</p>
 
-[![CI](https://github.com/YanYuanFE/sealpad/actions/workflows/ci.yml/badge.svg)](https://github.com/YanYuanFE/sealpad/actions/workflows/ci.yml)
+<p align="center">
+  <a href="https://github.com/YanYuanFE/sealpad/actions/workflows/ci.yml"><img src="https://github.com/YanYuanFE/sealpad/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
 **Confidential token-sale platform on the Zama FHEVM.** Bid amounts and
 contributions stay encrypted on-chain throughout the sale; only the final
 clearing price and your own allocation become public after settlement.
-
-Built for the [Zama Developer Program](https://www.zama.ai/post/zama-developer-program)
-— Mainnet Season 2, Builder Track.
 
 ---
 
