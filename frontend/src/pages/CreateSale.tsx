@@ -25,9 +25,15 @@ import {
   SEALPAD_FACTORY_ADDRESS,
 } from "@/config/contracts";
 import { ZERO_ADDRESS, getErrorMessage } from "@/lib/constants";
+import {
+  EMPTY_ROOT,
+  buildMerkleTree,
+  parseAddressList,
+} from "@/lib/merkle";
 import { REQUIRED_CHAIN_ID, useEnsureSepolia } from "@/lib/network";
 import { useTokenInfo } from "@/lib/use-token-info";
 import { TokenInfoBadge } from "@/components/TokenInfoBadge";
+import { publishWhitelist } from "@/lib/whitelist-api";
 
 // ============================================================
 //                       TIME UTILITIES
@@ -200,6 +206,10 @@ export function CreateSale() {
   const [vestingValue, setVestingValue] = useState("7");
   const [vestingUnit, setVestingUnit] = useState<DurationUnit>("days");
 
+  // Whitelist (off by default — empty root means open sale)
+  const [whitelistEnabled, setWhitelistEnabled] = useState(false);
+  const [whitelistText, setWhitelistText] = useState("");
+
   const [step, setStep] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -268,6 +278,21 @@ export function CreateSale() {
   );
   const vestingValid = !vestingEnabled || cliffSec + vestingSec > 0; // at least one of them must be > 0 when enabled
 
+  // ---------- Derived whitelist state ----------
+  const whitelistParse = useMemo(
+    () => (whitelistEnabled ? parseAddressList(whitelistText) : null),
+    [whitelistEnabled, whitelistText],
+  );
+  const whitelistBundle = useMemo(() => {
+    if (!whitelistParse || whitelistParse.addresses.length === 0) return null;
+    return buildMerkleTree(whitelistParse.addresses);
+  }, [whitelistParse]);
+  const whitelistValid =
+    !whitelistEnabled ||
+    (whitelistParse !== null &&
+      whitelistParse.invalid.length === 0 &&
+      whitelistParse.addresses.length > 0);
+
   // ---------- Cap validation ----------
   const softCapValid = isPositiveDecimal(softCap);
   const hardCapValid = isPositiveDecimal(hardCap);
@@ -304,7 +329,8 @@ export function CreateSale() {
     capOrderValid &&
     maxPerUserValid &&
     scheduleValid &&
-    vestingValid;
+    vestingValid &&
+    whitelistValid;
 
   const handleCreate = async () => {
     if (!publicClient || !formValid || !address) return;
@@ -389,8 +415,9 @@ export function CreateSale() {
         maxPerUser: parsePayAmount("Max per user", maxPerUser.trim() || "0"),
         startTime: BigInt(startUnix!),
         endTime: BigInt(endUnix!),
-        whitelistRoot:
-          "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+        whitelistRoot: (whitelistEnabled && whitelistBundle
+          ? whitelistBundle.root
+          : EMPTY_ROOT) as `0x${string}`,
         cliffDuration: BigInt(cliffSec),
         vestingDuration: BigInt(vestingSec),
       };
@@ -422,6 +449,56 @@ export function CreateSale() {
       });
       const vaultAddress =
         (events[0]?.args as { vault?: string } | undefined)?.vault ?? null;
+
+      // If a whitelist was configured, publish the address list to the backend
+      // so participants can auto-resolve their proof on the sale page. The
+      // contract stores only the root — without this publish step, no one
+      // could derive a proof to satisfy _checkWhitelist.
+      if (
+        whitelistEnabled &&
+        whitelistBundle &&
+        whitelistParse &&
+        vaultAddress
+      ) {
+        setStep("Publishing whitelist...");
+        try {
+          await publishWhitelist({
+            vault: vaultAddress as `0x${string}`,
+            root: whitelistBundle.root,
+            addresses: whitelistParse.addresses,
+          });
+          toast.success("Whitelist published");
+        } catch (publishErr) {
+          // Backend failed — fall back to a JSON download so the creator can
+          // either retry the publish manually later or hand proofs to
+          // participants out-of-band.
+          const fallback = {
+            vault: vaultAddress,
+            root: whitelistBundle.root,
+            count: whitelistBundle.count,
+            proofs: whitelistBundle.proofs,
+          };
+          try {
+            const blob = new Blob([JSON.stringify(fallback, null, 2)], {
+              type: "application/json",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `sealpad-whitelist-${vaultAddress}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          } catch {
+            // ignore — toast below carries the error
+          }
+          const why = getErrorMessage(publishErr, "publish failed");
+          toast.error(
+            `Whitelist publish failed (${why}). JSON downloaded as backup — share manually with participants.`,
+          );
+        }
+      }
 
       toast.success("Sale created!");
       navigate(vaultAddress ? `/app/sale/${vaultAddress}` : "/app");
@@ -807,6 +884,93 @@ export function CreateSale() {
                   </div>
                 </div>
               )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ---------- 5. Whitelist (Optional) ---------- */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>5 · Whitelist (Optional)</CardTitle>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono tracking-widest text-slate-500">
+              {whitelistEnabled ? "ENABLED" : "OPEN SALE"}
+            </span>
+            <Toggle
+              checked={whitelistEnabled}
+              onChange={setWhitelistEnabled}
+              label="Enable whitelist"
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!whitelistEnabled ? (
+            <p className="text-sm text-slate-500">
+              Anyone can deposit and bid. Leave disabled for an open sale.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label>Allowed Addresses</Label>
+                <textarea
+                  value={whitelistText}
+                  onChange={(e) => setWhitelistText(e.target.value)}
+                  placeholder="0xabc...&#10;0xdef...&#10;One address per line. Comma / space / semicolon separators also accepted."
+                  rows={6}
+                  className="w-full font-mono text-xs px-3 py-2 border border-slate-300 focus:border-brand-500 focus:outline-none resize-y"
+                  style={{ borderRadius: "0.69px" }}
+                />
+                <FieldHint>
+                  We compute the Merkle root locally. After the sale is
+                  created, the address list is published so whitelisted
+                  participants can auto-fetch their proof when they visit the
+                  sale page. Nothing leaks — only the root is on-chain.
+                </FieldHint>
+              </div>
+
+              {whitelistParse && whitelistParse.invalid.length > 0 && (
+                <FieldHint error>
+                  {whitelistParse.invalid.length} invalid address
+                  {whitelistParse.invalid.length === 1 ? "" : "es"}:{" "}
+                  {whitelistParse.invalid.slice(0, 3).join(", ")}
+                  {whitelistParse.invalid.length > 3 ? "…" : ""}
+                </FieldHint>
+              )}
+
+              {whitelistBundle && (
+                <div
+                  className="bg-slate-50 border border-slate-200 px-4 py-3 space-y-1.5 text-sm"
+                  style={{ borderRadius: "0.69px" }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-mono text-xs tracking-widest">
+                      ADDRESSES
+                    </span>
+                    <span className="font-mono font-semibold text-slate-900">
+                      {whitelistBundle.count}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-1.5">
+                    <span className="text-slate-500 font-mono text-xs tracking-widest shrink-0">
+                      ROOT
+                    </span>
+                    <span className="font-mono text-xs text-slate-700 truncate">
+                      {whitelistBundle.root}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {whitelistEnabled &&
+                whitelistText.trim() !== "" &&
+                whitelistParse !== null &&
+                whitelistParse.addresses.length === 0 &&
+                whitelistParse.invalid.length === 0 && (
+                  <FieldHint error>
+                    No valid addresses parsed.
+                  </FieldHint>
+                )}
             </>
           )}
         </CardContent>
