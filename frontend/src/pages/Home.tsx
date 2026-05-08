@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReadContract, useReadContracts } from "wagmi";
 import { erc20Abi, formatEther, formatUnits } from "viem";
-import { Plus, Lock } from "@phosphor-icons/react";
+import { Plus, Lock, ShieldCheck } from "@phosphor-icons/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,6 +17,7 @@ import {
   formatDuration,
   shortenAddress,
 } from "@/lib/constants";
+import { isEmptyRoot } from "@/lib/merkle";
 
 const StatusVariant = [
   "secondary",
@@ -53,20 +54,23 @@ function SaleCard({
   vaultAddress,
   sale,
   payTokenDecimals,
+  payTokenSymbol,
   now,
 }: {
   vaultAddress: string;
   sale: SaleData;
   payTokenDecimals?: number;
+  payTokenSymbol?: string;
   now: number;
 }) {
   const start = Number(sale.startTime);
   const end = Number(sale.endTime);
   const isETH = isETHPayToken(sale.payToken);
-  const tokenLabel = isETH ? "ETH" : "tokens";
+  const tokenLabel = isETH ? "ETH" : (payTokenSymbol ?? "tokens");
   const decimals = isETH ? 18 : (payTokenDecimals ?? 6);
   const fmtPrice = (raw: bigint | number) =>
     isETH ? formatEther(BigInt(raw)) : formatUnits(BigInt(raw), decimals);
+  const isWhitelisted = !isEmptyRoot(sale.whitelistRoot);
 
   let timeInfo = "";
   if (sale.status === 0) {
@@ -85,17 +89,29 @@ function SaleCard({
               {shortenAddress(vaultAddress)}
             </span>
           </CardTitle>
-          <Badge
-            variant={
-              StatusVariant[sale.status] as
-                | "default"
-                | "secondary"
-                | "destructive"
-            }
-            className="font-mono text-[10px] tracking-widest uppercase"
-          >
-            {SaleStatusLabel[sale.status]}
-          </Badge>
+          <div className="inline-flex items-center gap-2">
+            {isWhitelisted && (
+              <Badge
+                variant="secondary"
+                className="font-mono text-[10px] tracking-widest uppercase inline-flex items-center gap-1"
+                title="This sale is gated by a Merkle-tree whitelist"
+              >
+                <ShieldCheck size={10} weight="fill" />
+                Whitelist
+              </Badge>
+            )}
+            <Badge
+              variant={
+                StatusVariant[sale.status] as
+                  | "default"
+                  | "secondary"
+                  | "destructive"
+              }
+              className="font-mono text-[10px] tracking-widest uppercase"
+            >
+              {SaleStatusLabel[sale.status]}
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
@@ -117,10 +133,10 @@ function SaleCard({
             </div>
             <div>
               <p className="font-mono text-[10px] tracking-widest text-slate-500 uppercase">
-                Hard Cap
+                Soft / Hard
               </p>
               <p className="font-mono font-medium text-slate-900 mt-1">
-                {fmtPrice(sale.hardCap)} {tokenLabel}
+                {fmtPrice(sale.softCap)} / {fmtPrice(sale.hardCap)} {tokenLabel}
               </p>
             </div>
             <div>
@@ -221,10 +237,28 @@ export function Home() {
     [payTokenDecimalCalls],
   );
 
+  const payTokenSymbolContracts = useMemo(
+    () =>
+      payTokenDecimalCalls.map(({ address }) => ({
+        address,
+        abi: erc20Abi,
+        functionName: "symbol" as const,
+      })),
+    [payTokenDecimalCalls],
+  );
+
   const { data: payTokenDecimalResults } = useReadContracts({
     contracts: payTokenDecimalContracts,
     query: {
       enabled: payTokenDecimalContracts.length > 0,
+      refetchInterval: 30000,
+    },
+  });
+
+  const { data: payTokenSymbolResults } = useReadContracts({
+    contracts: payTokenSymbolContracts,
+    query: {
+      enabled: payTokenSymbolContracts.length > 0,
       refetchInterval: 30000,
     },
   });
@@ -241,6 +275,17 @@ export function Home() {
     });
     return map;
   }, [payTokenDecimalCalls, payTokenDecimalResults]);
+
+  const payTokenSymbolsByIdx = useMemo(() => {
+    const map = new Map<number, string>();
+    payTokenDecimalCalls.forEach(({ idx }, index) => {
+      const result = payTokenSymbolResults?.[index]?.result;
+      if (typeof result === "string" && result.length > 0) {
+        map.set(idx, result);
+      }
+    });
+    return map;
+  }, [payTokenDecimalCalls, payTokenSymbolResults]);
 
   const totalSales = vaultAddrs.length;
 
@@ -291,6 +336,7 @@ export function Home() {
                   vaultAddress={vaultAddrs[idx]}
                   sale={result.result as unknown as SaleData}
                   payTokenDecimals={payTokenDecimalsByIdx.get(idx)}
+                  payTokenSymbol={payTokenSymbolsByIdx.get(idx)}
                   now={now}
                 />
               );
