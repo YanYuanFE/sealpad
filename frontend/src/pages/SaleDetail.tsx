@@ -15,6 +15,7 @@ import {
 import { SaleTypeLabel, SaleStatusLabel } from "@/lib/constants";
 import type { SaleData } from "@/lib/sale-types";
 import { useSaleFormatters } from "@/lib/sale-formatters";
+import { CancelSaleBanner } from "@/components/sale/CancelSaleBanner";
 import { DepositPanel } from "@/components/sale/DepositPanel";
 import { ContributePanel } from "@/components/sale/ContributePanel";
 import { FinalizeBanner } from "@/components/sale/FinalizeBanner";
@@ -298,6 +299,17 @@ export function SaleDetail() {
       <ParticipantsList vaultAddress={vaultAddress} sale={sale} fmt={fmt} />
 
       <Separator />
+
+      {sale.status === 0 &&
+        sale.participantCount === 0 &&
+        !!address &&
+        address.toLowerCase() === sale.creator.toLowerCase() && (
+          <CancelSaleBanner
+            vaultAddress={vaultAddress}
+            onCancelled={refetch}
+            onError={handleSettleError}
+          />
+        )}
 
       {sale.status === 0 && !isStarted && (
         <NotStartedBanner startTime={sale.startTime} />
